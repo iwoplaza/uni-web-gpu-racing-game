@@ -1,0 +1,17 @@
+# Node modules
+node_modules/
+
+# Runtime data
+npm-debug.log
+
+# Build directory
+dist/
+
+# IDE / Editor directories
+.vscode/
+.idea/
+*.iml
+
+# Operating system generated files
+.DS_Store
+Thumbs.db
