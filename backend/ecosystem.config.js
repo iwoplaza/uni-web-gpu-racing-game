@@ -2,7 +2,10 @@ module.exports = {
 	apps: [
 		{
 			name: 'webgpu-racing-game',
-			script: './dist/index.js'
+			script: './dist/index.js',
+      env: {
+        PATH: '/home/tmp1/.nvm/versions/node/v18.12.0/bin:' + process.env.PATH
+      }
 		}
 	],
 	deploy: {
@@ -14,7 +17,8 @@ module.exports = {
 			path: '/home/tmp1/web-gpu-project', // Where to put the project on the server
 			'post-deploy':
 				'cd backend && npm install && npm run build && pm2 reload ecosystem.config.js --env production',
-			key: './key.pem'
+			key: './key.pem',
+      
 		}
 	}
 };
