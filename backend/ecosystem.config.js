@@ -13,7 +13,7 @@ module.exports = {
 			repo: 'git@github.com:iwoplaza/uni-web-gpu-racing-game.git',
 			path: '/home/tmp1/web-gpu-project', // Where to put the project on the server
 			'post-deploy':
-				'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
+				'cd backend && npm install && npm run build && pm2 reload ecosystem.config.js --env production',
 			key: './key.pem'
 		}
 	}
