@@ -119,7 +119,7 @@ class GPUBufferLayout {
 	}
 
 	allocate(schema: Schema<unknown>): MemoryLocation {
-		return this._allocateSize(schema.sizeOf(MaxValue));
+		return this._allocateSize(schema.measure(MaxValue).size);
 	}
 
 	finalize(minBufferSize: number = 0) {

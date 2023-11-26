@@ -29,26 +29,21 @@ const MAX_SPHERES = 64;  // TODO: Parametrize
 
 struct SceneInfo {
   num_of_spheres: u32,
-  num_of_domains: u32,
-  domains: array<MarchDomain, MAX_DOMAINS>,
-  spheres: array<SphereObj, MAX_SPHERES>
+  num_of_domains: u32
 }
 
 const WIDTH = {{WIDTH}};
 const HEIGHT = {{HEIGHT}};
 const BLOCK_SIZE = {{BLOCK_SIZE}};
-const PARALLEL_SAMPLES = {{PARALLEL_SAMPLES}};
 const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
 const MAX_STEPS = 1000;
 const SURFACE_DIST = 0.0001;
 const SUPER_SAMPLES = 4;
-const SUB_SAMPLES = 4;
-const MAX_REFL = 1u;
+const SUB_SAMPLES = 1;
+const MAX_REFL = 2u;
 const FAR = 100.;
-
-const VEC3F_MAX = vec3f(1., 1., 1.);
 
 @group(0) @binding(0) var<storage, read> white_noise_buffer: array<f32, WHITE_NOISE_BUFFER_SIZE>;
 @group(0) @binding(1) var<uniform> time: f32;
@@ -57,6 +52,8 @@ const VEC3F_MAX = vec3f(1., 1., 1.);
 
 @group(2) @binding(0) var<storage, read> scene_info: SceneInfo;
 @group(2) @binding(1) var<storage, read> view_matrix: mat4x4<f32>;
+@group(2) @binding(2) var<storage, read> scene_domains: array<MarchDomain, MAX_DOMAINS>;
+@group(2) @binding(3) var<storage, read> scene_spheres: array<SphereObj, MAX_SPHERES>;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
   return 16./255. + (64.738 * rgb.r + 129.057 * rgb.g + 25.064 * rgb.b) / 255.;
@@ -110,12 +107,20 @@ fn world_sdf(pos: vec3f) -> f32 {
   var obj_idx = -1;
   var min_dist = FAR;
 
+  var inf_limit = 100;
+
   for (var idx = 0u; idx < scene_info.num_of_spheres; idx++) {
-    let obj_dist = sphere_sdf(pos, scene_info.spheres[idx].xyzr.xyz, scene_info.spheres[idx].xyzr.w);
+    let obj_dist = sphere_sdf(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
 
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
       obj_idx = i32(idx);
+    }
+
+    inf_limit -= 1;
+    if (inf_limit <= 0) {
+      // TOO MANY ITERATIONS
+      break;
     }
   }
 
@@ -139,12 +144,20 @@ fn world_material(pos: vec3f, out: ptr<function, Material>) {
   var obj_idx = -1;
   var min_dist = FAR;
 
+  var inf_limit = 100;
+
   for (var idx = 0u; idx < scene_info.num_of_spheres; idx++) {
-    let obj_dist = sphere_sdf(pos, scene_info.spheres[idx].xyzr.xyz, scene_info.spheres[idx].xyzr.w);
+    let obj_dist = sphere_sdf(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
 
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
       obj_idx = i32(idx);
+    }
+
+    inf_limit -= 1;
+    if (inf_limit <= 0) {
+      // TOO MANY ITERATIONS
+      break;
     }
   }
 
@@ -154,16 +167,17 @@ fn world_material(pos: vec3f, out: ptr<function, Material>) {
     (*out).color = sky_color(dir);
   }
   else {
-    let mat_idx = scene_info.spheres[obj_idx].material_idx;
+    let mat_idx = scene_spheres[obj_idx].material_idx;
 
     if (mat_idx == 0) {
       (*out).emissive = false;
       (*out).roughness = 0.3;
-      (*out).color = vec3f(1, 0.9, 0.8);
+      // (*out).color = vec3f(1, 0.9, 0.8);
+      (*out).color = vec3f(1, 0, 0);
     }
     else if (mat_idx == 1) {
       (*out).emissive = false;
-      (*out).roughness = 1.;
+      (*out).roughness = 0.;
       (*out).color = vec3f(0.5, 0.7, 1);
     }
     else if (mat_idx == 2) {
@@ -247,7 +261,7 @@ fn sort_primitives(ray_pos: vec3f, ray_dir: vec3f, out_hit_order: ptr<function, 
   );
 
   for (var i = 0u; i < scene_info.num_of_domains; i++) {
-    var domain = scene_info.domains[i];
+    var domain = scene_domains[i];
 
     var near_hit = -1.;
     var far_hit = -1.;
@@ -305,7 +319,7 @@ fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<funct
   dir.x *= hspan;
   dir.y *= -vspan;
 
-  *out_pos = (vec4f(0, 0, -3, 1)).xyz;
+  *out_pos = (vec4f(0, 0, -4, 1)).xyz;
   *out_dir = normalize((dir).xyz);
   // *out_pos = (view_matrix * vec4f(0, 0, 0, 1)).xyz;
   // *out_dir = normalize((view_matrix * dir).xyz);
@@ -313,14 +327,13 @@ fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<funct
 
 fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   var hit_order = array<RayHitInfo, MAX_DOMAINS>();
-  // let hit_domains = sort_primitives(ray_pos, ray_dir, /*out*/ &hit_order);
+  let hit_domains = sort_primitives(ray_pos, ray_dir, /*out*/ &hit_order);
 
   // -- TEST
-  hit_order[0].start = 0;
-  hit_order[0].end = 10;
-  let hit_domains = 1u;
+  // hit_order[0].start = 0;
+  // hit_order[0].end = 10;
+  // let hit_domains = 1u;
   // -- END TEST
-
 
   // Did not hit any domains
   if (hit_domains == 0) {
@@ -387,9 +400,7 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   (*out).normal = world_normals(pos);
 }
 
-var<workgroup> parallel_buffer: array<array<vec3f, PARALLEL_SAMPLES>, BLOCK_SIZE * BLOCK_SIZE>;
-
-@compute @workgroup_size(BLOCK_SIZE, BLOCK_SIZE, PARALLEL_SAMPLES)
+@compute @workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
 fn main_frag(
   @builtin(local_invocation_id) LocalInvocationID: vec3<u32>,
   @builtin(global_invocation_id) GlobalInvocationID: vec3<u32>,
@@ -413,17 +424,8 @@ fn main_frag(
       );
       
       for (var ss = 0u; ss < SUB_SAMPLES; ss++) {
-        // Anti-aliasing
-        // TODO: Offset in view space, not in world space.
-        // TODO: Maybe offset by sub-pixel density?.
-        // let offset = vec2f(
-        //   randf(&seed),
-        //   randf(&seed),
-        // );
-
         construct_ray(vec2f(GlobalInvocationID.xy) + offset, &ray_pos, &ray_dir);
         
-        // let offset = rand_in_circle(&seed) * 0.5 + vec2f(0.5, 0.5);
         var sub_acc = vec3f(1., 1., 1.);
 
         for (var refl = 0u; refl < MAX_REFL; refl++) {
@@ -452,59 +454,6 @@ fn main_frag(
   }
 
   acc /= SUB_SAMPLES * SUPER_SAMPLES * SUPER_SAMPLES;
-  parallel_buffer[parallel_idx][LocalInvocationID.z] = acc;
-
-  // Waiting for the whole shared memory to be filled.
-  workgroupBarrier();
-
-  if (LocalInvocationID.z != 0) {
-    return;
-  }
-  
-  // acc = vec3f(0, 0, 0);
-  // for (var i = 0; i < 1; i++) {
-  //   acc += parallel_buffer[parallel_idx][i];
-  // }
-  // acc /= PARALLEL_SAMPLES;
 
   textureStore(output_tex, GlobalInvocationID.xy, vec4(acc, 1.0));
 }
-
-@compute @workgroup_size(BLOCK_SIZE, BLOCK_SIZE)
-fn main_aux(
-  @builtin(local_invocation_id) LocalInvocationID: vec3<u32>,
-  @builtin(global_invocation_id) GlobalInvocationID: vec3<u32>,
-) {
-  let lid = LocalInvocationID.xy;
-  var ray_pos = vec3f(0, 0, 0);
-  var ray_dir = vec3f(0, 0, 1);
-
-  construct_ray(vec2f(GlobalInvocationID.xy), &ray_pos, &ray_dir);
-
-  var march_result: MarchResult;
-  march(ray_pos, ray_dir, &march_result);
-
-  let world_normal = march_result.normal;
-  let white = vec3f(1., 1., 1.);
-  let mat_color = min(march_result.material.color, white);
-
-  var albedo_luminance = convert_rgb_to_y(mat_color);
-  var emission_luminance = 0.;
-  if (march_result.material.emissive) {
-    emission_luminance = convert_rgb_to_y(mat_color);
-    // albedo_luminance = 0;
-  }
-
-  // var seed = GlobalInvocationID.x + GlobalInvocationID.y * WIDTH + GlobalInvocationID.z * WIDTH * HEIGHT;
-
-  let view_normal = vec2f(world_normal.x, world_normal.y);
-
-  let aux = vec4(
-    view_normal.xy,
-    albedo_luminance,
-    emission_luminance
-  );
-
-  textureStore(output_tex, GlobalInvocationID.xy, aux);
-}
-

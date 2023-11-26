@@ -1,9 +1,10 @@
-import { BufferWriter, object, tupleOf, u32, type Parsed, MaxValue } from 'typed-binary';
+import { BufferWriter, MaxValue, type Parsed } from 'typed-binary';
 
+import { roundUp } from '$lib/mathUtils';
 import type GBuffer from '../gBuffer';
+import { object, vec2u } from '../std140';
 import fullScreenQuadWGSL from '../fullScreenQuad.wgsl?raw';
 import postProcessWGSL from './postProcess.wgsl?raw';
-import { pad } from '../schemaUtils';
 
 type Options = {
 	device: GPUDevice;
@@ -14,10 +15,10 @@ type Options = {
 
 type ViewportStruct = Parsed<typeof ViewportStruct>;
 const ViewportStruct = object({
-	canvasSize: pad(tupleOf(u32, 2), 16)
+	canvasSize: vec2u
 	// --
 });
-const ViewportStructSize = ViewportStruct.sizeOf(MaxValue);
+const ViewportStructSize = ViewportStruct.measure(MaxValue).size;
 
 export const PostProcessingStep = ({ device, context, presentationFormat, gBuffer }: Options) => {
 	//
@@ -29,7 +30,7 @@ export const PostProcessingStep = ({ device, context, presentationFormat, gBuffe
 	};
 
 	const viewportUniformBuffer = device.createBuffer({
-		size: ViewportStructSize,
+		size: roundUp(ViewportStructSize, 16),
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 	});
 
@@ -39,11 +40,11 @@ export const PostProcessingStep = ({ device, context, presentationFormat, gBuffe
 	ViewportStruct.write(bufferWriter, viewport);
 
 	device.queue.writeBuffer(
-		viewportUniformBuffer,
-		0,
-		viewportUniformData,
-		0,
-		viewportUniformData.byteLength
+		viewportUniformBuffer, // dest
+		0, // dest offset
+		viewportUniformData, // src
+		0, // src offset
+		viewportUniformData.byteLength // size
 	);
 
 	//

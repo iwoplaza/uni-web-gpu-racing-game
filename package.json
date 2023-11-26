@@ -12,7 +12,7 @@
 		"format": "prettier --plugin-search-dir . --write ."
 	},
 	"dependencies": {
-		"typed-binary": "^2.0.0",
+		"typed-binary": "^3.0.0",
 		"wgpu-matrix": "^2.5.0"
 	},
 	"devDependencies": {
