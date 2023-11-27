@@ -15,7 +15,7 @@ import {
 } from 'typed-binary';
 import * as TB from 'typed-binary';
 
-class AlignedSchema<T> extends Schema<T> {
+export class AlignedSchema<T> extends Schema<T> {
 	private innerSchema: IStableSchema<T>;
 	private readonly bitMask: number;
 	private readonly inverseBitMask: number;
@@ -74,6 +74,7 @@ export const vec3u = new AlignedSchema(TB.tupleOf(TB.u32, 3), 16);
 export const vec3f = new AlignedSchema(TB.tupleOf(TB.f32, 3), 16);
 export const vec4u = new AlignedSchema(TB.tupleOf(TB.u32, 4), 16);
 export const vec4f = new AlignedSchema(TB.tupleOf(TB.f32, 4), 16);
+export const mat4f = new AlignedSchema(TB.tupleOf(TB.f32, 16), 16); // array of column vectors
 
 type SchemaMap<T> = { [key in keyof T]: AlignedSchema<T[key]> };
 export const object = <P extends Record<string, unknown> = Record<string, never>>(

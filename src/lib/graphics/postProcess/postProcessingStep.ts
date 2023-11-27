@@ -2,7 +2,7 @@ import { BufferWriter, MaxValue, type Parsed } from 'typed-binary';
 
 import { roundUp } from '$lib/mathUtils';
 import type GBuffer from '../gBuffer';
-import { object, vec2u } from '../std140';
+import * as std140 from '../std140';
 import fullScreenQuadWGSL from '../fullScreenQuad.wgsl?raw';
 import postProcessWGSL from './postProcess.wgsl?raw';
 
@@ -14,8 +14,8 @@ type Options = {
 };
 
 type ViewportStruct = Parsed<typeof ViewportStruct>;
-const ViewportStruct = object({
-	canvasSize: vec2u
+const ViewportStruct = std140.object({
+	canvasSize: std140.vec2u
 	// --
 });
 const ViewportStructSize = ViewportStruct.measure(MaxValue).size;

@@ -2,44 +2,37 @@ import { mat4, vec3 } from 'wgpu-matrix';
 
 class CameraSettings {
 	public gpuBuffer: GPUBuffer;
-	private invViewMatrix = mat4.identity() as Float32Array;
+	/**
+	 * Transform of the camera, not of everything else like in standard rendering.
+	 */
+	private viewMatrix = mat4.identity() as Float32Array;
 
 	constructor(private readonly device: GPUDevice) {
 		this.gpuBuffer = device.createBuffer({
-			size: 16 * 4, // mat4f,
-			usage: GPUBufferUsage.STORAGE
+			size: 16 * 4, // mat4x4<f32>,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
 		});
 	}
 
 	update() {
-		const origin = vec3.fromValues(0, 0, 1);
-		const eyePosition = vec3.fromValues(0, 0, 0);
-		// const upVector = vec3.fromValues(0, 1, 0);
-
+		const origin = vec3.fromValues(0, 0, 0);
+		// const rad = Math.PI / 4;
 		const rad = Math.PI * (Date.now() / 5000);
-		const rotation = mat4.rotateY(mat4.translation(origin), rad);
-		vec3.transformMat4(eyePosition, rotation, eyePosition);
 
-		// const viewMatrix = mat4.lookAt(
-		//   eyePosition,
-		//   origin,
-		//   upVector,
-		// ) as Float32Array;
-
-		// const invViewMatrix = mat4.inverse(viewMatrix) as Float32Array;
-
-		this.invViewMatrix = mat4.translation(
-			vec3.fromValues(Math.abs(Math.sin(rad * 2) * 0.2), 0, 0)
-		) as Float32Array;
+		const viewMatrix = mat4.identity();
+		mat4.translate(viewMatrix, origin, viewMatrix);
+		mat4.rotateY(viewMatrix, rad, viewMatrix);
+		mat4.translate(viewMatrix, vec3.fromValues(0, 0, -4), viewMatrix);
+		this.viewMatrix = viewMatrix as Float32Array;
 	}
 
 	queueWrite(): void {
 		this.device.queue.writeBuffer(
-			this.gpuBuffer,
-			0,
-			this.invViewMatrix.buffer,
-			this.invViewMatrix.byteOffset,
-			this.invViewMatrix.byteLength
+			this.gpuBuffer, // dest
+			0, // dest offset
+			this.viewMatrix.buffer, // src
+			this.viewMatrix.byteOffset, // src offset
+			this.viewMatrix.byteLength // size
 		);
 	}
 }

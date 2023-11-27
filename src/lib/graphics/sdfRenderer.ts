@@ -5,6 +5,9 @@ import { TimeInfoBuffer } from './timeInfoBuffer';
 import CameraSettings from './cameraSettings';
 import type GBuffer from './gBuffer';
 import SceneInfo from './sceneInfo';
+import { SphereShape, SphereShapeCollection } from './sphereShape';
+import { CarWheelShape, CarWheelShapeCollection } from './carWheelShape';
+import { mat4, vec3 } from 'wgpu-matrix';
 
 export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 	const LABEL = `SDF Renderer`;
@@ -17,6 +20,8 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 	const timeInfoBuffer = TimeInfoBuffer(device, GPUBufferUsage.UNIFORM);
 
 	const sceneInfo = new SceneInfo(device);
+	const sphereShapes = new SphereShapeCollection(3, device, sceneInfo);
+	const carWheelShapes = new CarWheelShapeCollection(5, device, sceneInfo);
 
 	const mainBindGroupLayout = device.createBindGroupLayout({
 		label: `${LABEL} - Main Bind Group Layout`,
@@ -78,14 +83,8 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 					type: 'read-only-storage'
 				}
 			},
-			// scene_spheres
-			{
-				binding: 3,
-				visibility: GPUShaderStage.COMPUTE,
-				buffer: {
-					type: 'read-only-storage'
-				}
-			}
+			...sphereShapes.bindGroupLayout,
+			...carWheelShapes.bindGroupLayout
 		]
 	});
 
@@ -110,15 +109,23 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 		]
 	});
 
-	sceneInfo.allocateSphere({
-		xyzr: [1, 0, 1, 2],
-		materialIdx: 1
-	});
+	// const centerSphere = new SphereShape({
+	// 	xyzr: [1, 0, 1, 2],
+	// 	materialIdx: 1
+	// });
+	// sphereShapes.uploadInstance(centerSphere);
 
-	sceneInfo.allocateSphere({
-		xyzr: [-3, 0, 1, 1],
-		materialIdx: 2
+	// const lightSphere = new SphereShape({
+	// 	xyzr: [-1, 0, 1, 0.5],
+	// 	materialIdx: 2
+	// });
+	// sphereShapes.uploadInstance(lightSphere);
+
+	const wheel = new CarWheelShape({
+		transform: [...mat4.translation(vec3.fromValues(0, 0, 0)).values()]
 	});
+	console.log(wheel.data);
+	carWheelShapes.uploadInstance(wheel);
 
 	// sceneInfo.allocateSphere({
 	// 	xyzr: [0, 0.7, 1, 0.2],
@@ -141,18 +148,15 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 					buffer: camera.gpuBuffer
 				}
 			},
+			// scene_domains
 			{
 				binding: 2,
 				resource: {
 					buffer: sceneInfo.gpuDomainsBuffer
 				}
 			},
-			{
-				binding: 3,
-				resource: {
-					buffer: sceneInfo.gpuSpheresBuffer
-				}
-			}
+			...sphereShapes.bindGroup,
+			...carWheelShapes.bindGroup
 		]
 	});
 
@@ -191,6 +195,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 		perform(commandEncoder: GPUCommandEncoder) {
 			timeInfoBuffer.update();
 			camera.update();
+			camera.queueWrite();
 
 			const mainPass = commandEncoder.beginComputePass();
 

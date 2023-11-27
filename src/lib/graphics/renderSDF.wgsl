@@ -10,11 +10,6 @@ struct MarchResult {
   normal: vec3f,
 }
 
-struct SphereObj {
-  xyzr: vec4f,
-  material_idx: u32,
-}
-
 const DOMAIN_AABB = 0u;
 const DOMAIN_PLANE = 1u;
 
@@ -25,10 +20,8 @@ struct MarchDomain {
 }
 
 const MAX_DOMAINS = 64;  // TODO: Parametrize
-const MAX_SPHERES = 64;  // TODO: Parametrize
 
 struct SceneInfo {
-  num_of_spheres: u32,
   num_of_domains: u32
 }
 
@@ -39,10 +32,10 @@ const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
 const MAX_STEPS = 1000;
-const SURFACE_DIST = 0.0001;
+const SURFACE_DIST = 0.001;
 const SUPER_SAMPLES = 4;
 const SUB_SAMPLES = 1;
-const MAX_REFL = 2u;
+const MAX_REFL = 1u;
 const FAR = 100.;
 
 @group(0) @binding(0) var<storage, read> white_noise_buffer: array<f32, WHITE_NOISE_BUFFER_SIZE>;
@@ -53,7 +46,27 @@ const FAR = 100.;
 @group(2) @binding(0) var<storage, read> scene_info: SceneInfo;
 @group(2) @binding(1) var<storage, read> view_matrix: mat4x4<f32>;
 @group(2) @binding(2) var<storage, read> scene_domains: array<MarchDomain, MAX_DOMAINS>;
-@group(2) @binding(3) var<storage, read> scene_spheres: array<SphereObj, MAX_SPHERES>;
+
+const MAX_SPHERES = 64;  // TODO: Parametrize
+
+struct SphereObj {
+  xyzr: vec4f,
+  material_idx: u32,
+}
+
+@group(2) @binding(3) var<storage, read> scene_spheres_count: u32;
+@group(2) @binding(4) var<storage, read> scene_spheres: array<SphereObj, MAX_SPHERES>;
+
+const MAX_CARWHEELS = 64;  // TODO: Parametrize
+
+struct CarWheelShape {
+  transform: mat4x4<f32>,
+}
+
+@group(2) @binding(5) var<storage, read> scene_carwheels_count: u32;
+@group(2) @binding(6) var<storage, read> scene_carwheels: array<CarWheelShape, MAX_CARWHEELS>;
+
+const MATERIAL_NORMAL_TEST = 100;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
   return 16./255. + (64.738 * rgb.r + 129.057 * rgb.g + 25.064 * rgb.b) / 255.;
@@ -99,22 +112,87 @@ fn rand_on_hemisphere(seed: ptr<function, u32>, normal: vec3f) -> vec3f {
 
 // -- SDF
 
-fn sphere_sdf(pos: vec3f, o: vec3f, r: f32) -> f32 {
+/**
+ * Inflates the passed in field, and makes it rounded as
+ * a side-effect.
+
+ * @returns 3d sdf
+ */
+fn op_round(d: f32, r: f32) -> f32 {
+  return d - r;
+}
+
+/**
+ * @returns 2d coordinates
+ */
+fn op_revolve_y(p: vec3f, offset: f32) -> vec2f {
+  return vec2(length(p.xz) - offset, p.y);
+}
+
+/**
+ * @returns 2d coordinates
+ */
+fn op_revolve_x(p: vec3f, offset: f32) -> vec2f {
+  return vec2(p.x, length(p.yz) - offset);
+}
+
+fn sdf2_box(p: vec2f, b: vec2f) -> f32 {
+  let d = abs(p) - b;
+  return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
+}
+
+fn sdf_wheel(pos: vec3f) -> f32 {
+  let pos2 = op_revolve_x(pos, 0.5);
+
+  return min(
+    op_round(
+      sdf2_box(pos2, vec2f(0.2)),
+      0.2 // roundness
+    ),
+      // union with
+    min(
+      op_round(
+        sdf2_box(pos2 + vec2f(0.25, -0.25), vec2f(0.2, 0.05)),
+        0.05
+      ),
+      // union with
+      op_round(
+        sdf2_box(pos2 + vec2f(0.22, -0.04), vec2f(0.2, 0.01)),
+        0.02
+      )
+    )
+  );
+}
+
+fn sdf_sphere(pos: vec3f, o: vec3f, r: f32) -> f32 {
   return distance(pos, o) - r;
 }
 
-fn world_sdf(pos: vec3f) -> f32 {
-  var obj_idx = -1;
+fn sdf_world(pos: vec3f) -> f32 {
   var min_dist = FAR;
 
   var inf_limit = 100;
 
-  for (var idx = 0u; idx < scene_info.num_of_spheres; idx++) {
-    let obj_dist = sphere_sdf(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
+  for (var idx = 0u; idx < scene_carwheels_count; idx++) {
+    let t_pos = scene_carwheels[idx].transform * vec4f(pos, 1.0);
+    let obj_dist = sdf_wheel(t_pos.xyz);
 
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
-      obj_idx = i32(idx);
+    }
+
+    inf_limit -= 1;
+    if (inf_limit <= 0) {
+      // TOO MANY ITERATIONS
+      break;
+    }
+  }
+
+  for (var idx = 0u; idx < scene_spheres_count; idx++) {
+    let obj_dist = sdf_sphere(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
+
+    if (obj_dist < min_dist) {
+      min_dist = obj_dist;
     }
 
     inf_limit -= 1;
@@ -140,18 +218,23 @@ fn sky_color(dir: vec3f) -> vec3f {
   ) * mix(1., 0., c);
 }
 
-fn world_material(pos: vec3f, out: ptr<function, Material>) {
-  var obj_idx = -1;
+fn material_world(pos: vec3f, normal: vec3f, out: ptr<function, Material>) {
+  // assuming sky, replacing later
+  (*out).emissive = true;
+  (*out).color = sky_color(normalize(pos));
+
+  var mat_idx = -1;
   var min_dist = FAR;
 
   var inf_limit = 100;
 
-  for (var idx = 0u; idx < scene_info.num_of_spheres; idx++) {
-    let obj_dist = sphere_sdf(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
+  for (var idx = 0u; idx < scene_carwheels_count; idx++) {
+    let t_pos = scene_carwheels[idx].transform * vec4f(pos, 1.0);
+    let obj_dist = sdf_wheel(t_pos.xyz);
 
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
-      obj_idx = i32(idx);
+      mat_idx = MATERIAL_NORMAL_TEST;
     }
 
     inf_limit -= 1;
@@ -161,14 +244,22 @@ fn world_material(pos: vec3f, out: ptr<function, Material>) {
     }
   }
 
-  if (obj_idx == -1) { // sky
-    let dir = normalize(pos);
-    (*out).emissive = true;
-    (*out).color = sky_color(dir);
-  }
-  else {
-    let mat_idx = scene_spheres[obj_idx].material_idx;
+  for (var idx = 0u; idx < scene_spheres_count; idx++) {
+    let obj_dist = sdf_sphere(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
 
+    if (obj_dist < min_dist) {
+      min_dist = obj_dist;
+      mat_idx = i32(scene_spheres[idx].material_idx);
+    }
+
+    inf_limit -= 1;
+    if (inf_limit <= 0) {
+      // TOO MANY ITERATIONS
+      break;
+    }
+  }
+
+  if (mat_idx != -1) { // not sky
     if (mat_idx == 0) {
       (*out).emissive = false;
       (*out).roughness = 0.3;
@@ -184,6 +275,11 @@ fn world_material(pos: vec3f, out: ptr<function, Material>) {
       (*out).emissive = true;
       (*out).color = vec3f(0.5, 1, 0.7) * 10;
     }
+    else if (mat_idx == MATERIAL_NORMAL_TEST) {
+      (*out).emissive = false;
+      (*out).roughness = 1.;
+      (*out).color = vec3f(normal.x + 0.5, normal.y + 0.5, normal.z + 0.5);
+    }
   }
 }
 
@@ -193,10 +289,10 @@ fn world_normals(point: vec3f) -> vec3f {
   let offY = vec3f(point.x, point.y + epsilon, point.z);
   let offZ = vec3f(point.x, point.y, point.z + epsilon);
   
-  let centerDistance = world_sdf(point);
-  let xDistance = world_sdf(offX);
-  let yDistance = world_sdf(offY);
-  let zDistance = world_sdf(offZ);
+  let centerDistance = sdf_world(point);
+  let xDistance = sdf_world(offX);
+  let yDistance = sdf_world(offY);
+  let zDistance = sdf_world(offZ);
 
   return vec3f(
     (xDistance - centerDistance),
@@ -277,7 +373,7 @@ fn sort_primitives(ray_pos: vec3f, ray_dir: vec3f, out_hit_order: ptr<function, 
       ray_to_box(ray_pos - domain.pos, inv_ray_dir, domain.extra, &near_hit, &far_hit);
     }
 
-    if (near_hit < 0) {
+    if (far_hit <= 0) {
       continue;
     }
 
@@ -319,10 +415,10 @@ fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<funct
   dir.x *= hspan;
   dir.y *= -vspan;
 
-  *out_pos = (vec4f(0, 0, -4, 1)).xyz;
-  *out_dir = normalize((dir).xyz);
-  // *out_pos = (view_matrix * vec4f(0, 0, 0, 1)).xyz;
-  // *out_dir = normalize((view_matrix * dir).xyz);
+  // *out_pos = (vec4f(0, 0, -4, 1)).xyz;
+  // *out_dir = normalize((dir).xyz);
+  *out_pos = (view_matrix * vec4f(0, 0, 0, 1)).xyz;
+  *out_dir = normalize((view_matrix * dir).xyz);
 }
 
 fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
@@ -350,11 +446,12 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
 
   for (var b = 0u; b < hit_domains; b++) {
     prev_dist = -1.;
-    var progress = hit_order[b].start - SURFACE_DIST;
+    // starting at 0, or at the start of the hit domain
+    var progress = max(0, hit_order[b].start);
 
     for (var step = 0u; step <= MAX_STEPS; step++) {
       pos = ray_pos + ray_dir * progress;
-      min_dist = world_sdf(pos);
+      min_dist = sdf_world(pos);
 
       // Inside volume?
       if (min_dist <= 0. && prev_dist > 0.) {
@@ -395,9 +492,9 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   }
 
   var material: Material;
-  world_material(pos, &material);
-  (*out).material = material;
   (*out).normal = world_normals(pos);
+  material_world(pos, (*out).normal, &material);
+  (*out).material = material;
 }
 
 @compute @workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
