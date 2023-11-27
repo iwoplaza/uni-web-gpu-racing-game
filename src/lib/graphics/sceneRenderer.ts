@@ -1,5 +1,6 @@
 import GBuffer from './gBuffer';
 import { PostProcessingStep } from './postProcess/postProcessingStep';
+import type { Scene } from './scene';
 import { SDFRenderer } from './sdfRenderer';
 import ViewportSettings from './viewportSettings';
 
@@ -13,10 +14,11 @@ class SceneRenderer {
 		device: GPUDevice,
 		context: GPUCanvasContext,
 		canvasSize: [number, number],
-		presentationFormat: GPUTextureFormat
+		presentationFormat: GPUTextureFormat,
+		scene: Scene
 	) {
 		this.gBuffer = new GBuffer(device, canvasSize);
-		this.sdfRenderer = SDFRenderer(device, this.gBuffer);
+		this.sdfRenderer = SDFRenderer(device, this.gBuffer, scene);
 		this.viewportSettings = new ViewportSettings(device);
 		this.postProcess = PostProcessingStep({
 			device,

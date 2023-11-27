@@ -5,14 +5,14 @@ import * as std140 from './std140';
 import { MarchDomainKind, type MarchDomainAllocator, MarchDomain } from './marchDomain';
 import { ShapeCollection, Shape } from './shape';
 
-type CarWheelStruct = Parsed<typeof CarWheelStruct>;
-const CarWheelStruct = std140.object({
+type CarBodyStruct = Parsed<typeof CarBodyStruct>;
+const CarBodyStruct = std140.object({
 	transform: std140.mat4f
 });
 
-export class CarWheelShapeCollection extends ShapeCollection<CarWheelStruct> {
+export class CarBodyShapeCollection extends ShapeCollection<CarBodyStruct> {
 	constructor(device: GPUDevice, domainAllocator: MarchDomainAllocator) {
-		super('carwheels', CarWheelStruct, device, domainAllocator);
+		super('carbodies', CarBodyStruct, device, domainAllocator);
 	}
 
 	structPropertiesCode = `
@@ -20,8 +20,8 @@ export class CarWheelShapeCollection extends ShapeCollection<CarWheelStruct> {
 	`;
 }
 
-export class CarWheelShape extends Shape<CarWheelStruct> {
-	constructor(data: CarWheelStruct) {
+export class CarBodyShape extends Shape<CarBodyStruct> {
+	constructor(data: CarBodyStruct) {
 		super(data);
 	}
 

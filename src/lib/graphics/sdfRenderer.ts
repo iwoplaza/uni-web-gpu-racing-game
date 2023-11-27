@@ -4,12 +4,9 @@ import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
 import CameraSettings from './cameraSettings';
 import type GBuffer from './gBuffer';
-import SceneInfo from './sceneInfo';
-import { SphereShape, SphereShapeCollection } from './sphereShape';
-import { CarWheelShape, CarWheelShapeCollection } from './carWheelShape';
-import { mat4, vec3 } from 'wgpu-matrix';
+import type { Scene } from './scene';
 
-export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
+export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) => {
 	const LABEL = `SDF Renderer`;
 	const blockDim = 8;
 	const whiteNoiseBufferSize = 512 * 512;
@@ -19,9 +16,11 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 	const whiteNoiseBuffer = WhiteNoiseBuffer(device, whiteNoiseBufferSize, GPUBufferUsage.STORAGE);
 	const timeInfoBuffer = TimeInfoBuffer(device, GPUBufferUsage.UNIFORM);
 
-	const sceneInfo = new SceneInfo(device);
-	const sphereShapes = new SphereShapeCollection(3, device, sceneInfo);
-	const carWheelShapes = new CarWheelShapeCollection(5, device, sceneInfo);
+	let bindGroupIdx = 3;
+	for (const collection of scene.shapeCollections) {
+		collection.bindGroupIdx = bindGroupIdx;
+		bindGroupIdx += 2;
+	}
 
 	const mainBindGroupLayout = device.createBindGroupLayout({
 		label: `${LABEL} - Main Bind Group Layout`,
@@ -83,8 +82,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 					type: 'read-only-storage'
 				}
 			},
-			...sphereShapes.bindGroupLayout,
-			...carWheelShapes.bindGroupLayout
+			...scene.shapeCollections.map((c) => c.bindGroupLayout).flat()
 		]
 	});
 
@@ -109,29 +107,6 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 		]
 	});
 
-	// const centerSphere = new SphereShape({
-	// 	xyzr: [1, 0, 1, 2],
-	// 	materialIdx: 1
-	// });
-	// sphereShapes.uploadInstance(centerSphere);
-
-	// const lightSphere = new SphereShape({
-	// 	xyzr: [-1, 0, 1, 0.5],
-	// 	materialIdx: 2
-	// });
-	// sphereShapes.uploadInstance(lightSphere);
-
-	const wheel = new CarWheelShape({
-		transform: [...mat4.translation(vec3.fromValues(0, 0, 0)).values()]
-	});
-	console.log(wheel.data);
-	carWheelShapes.uploadInstance(wheel);
-
-	// sceneInfo.allocateSphere({
-	// 	xyzr: [0, 0.7, 1, 0.2],
-	// 	materialIdx: 2
-	// });
-
 	const sceneBindGroup = device.createBindGroup({
 		label: `${LABEL} - Scene Bind Group`,
 		layout: sceneBindGroupLayout,
@@ -139,7 +114,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 			{
 				binding: 0,
 				resource: {
-					buffer: sceneInfo.gpuSceneInfoBuffer
+					buffer: scene.sceneInfo.gpuSceneInfoBuffer
 				}
 			},
 			{
@@ -152,11 +127,10 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 			{
 				binding: 2,
 				resource: {
-					buffer: sceneInfo.gpuDomainsBuffer
+					buffer: scene.sceneInfo.gpuDomainsBuffer
 				}
 			},
-			...sphereShapes.bindGroup,
-			...carWheelShapes.bindGroup
+			...scene.shapeCollections.map((c) => c.bindGroup).flat()
 		]
 	});
 
@@ -184,7 +158,8 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer) => {
 					WIDTH: `${mainPassSize[0]}`,
 					HEIGHT: `${mainPassSize[1]}`,
 					BLOCK_SIZE: `${blockDim}`,
-					WHITE_NOISE_BUFFER_SIZE: `${whiteNoiseBufferSize}`
+					WHITE_NOISE_BUFFER_SIZE: `${whiteNoiseBufferSize}`,
+					SHAPE_DEFINITIONS: `${scene.definitionsCode}`
 				})
 			}),
 			entryPoint: 'main_frag'

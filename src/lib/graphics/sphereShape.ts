@@ -11,9 +11,14 @@ const SphereStruct = std140.object({
 });
 
 export class SphereShapeCollection extends ShapeCollection<SphereStruct> {
-	constructor(bindGroup: number, device: GPUDevice, domainAllocator: MarchDomainAllocator) {
-		super('spheres', SphereStruct, bindGroup, device, domainAllocator);
+	constructor(device: GPUDevice, domainAllocator: MarchDomainAllocator) {
+		super('spheres', SphereStruct, device, domainAllocator);
 	}
+
+	structPropertiesCode = `
+		xyzr: vec4f,
+		material_idx: u32,
+	`;
 }
 
 export class SphereShape extends Shape<SphereStruct> {

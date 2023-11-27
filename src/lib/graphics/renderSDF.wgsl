@@ -47,24 +47,7 @@ const FAR = 100.;
 @group(2) @binding(1) var<storage, read> view_matrix: mat4x4<f32>;
 @group(2) @binding(2) var<storage, read> scene_domains: array<MarchDomain, MAX_DOMAINS>;
 
-const MAX_SPHERES = 64;  // TODO: Parametrize
-
-struct SphereObj {
-  xyzr: vec4f,
-  material_idx: u32,
-}
-
-@group(2) @binding(3) var<storage, read> scene_spheres_count: u32;
-@group(2) @binding(4) var<storage, read> scene_spheres: array<SphereObj, MAX_SPHERES>;
-
-const MAX_CARWHEELS = 64;  // TODO: Parametrize
-
-struct CarWheelShape {
-  transform: mat4x4<f32>,
-}
-
-@group(2) @binding(5) var<storage, read> scene_carwheels_count: u32;
-@group(2) @binding(6) var<storage, read> scene_carwheels: array<CarWheelShape, MAX_CARWHEELS>;
+{{SHAPE_DEFINITIONS}}
 
 const MATERIAL_NORMAL_TEST = 100;
 
@@ -218,7 +201,7 @@ fn sky_color(dir: vec3f) -> vec3f {
   ) * mix(1., 0., c);
 }
 
-fn material_world(pos: vec3f, normal: vec3f, out: ptr<function, Material>) {
+fn material_world(pos: vec3f, normal: vec3f, ao: f32, out: ptr<function, Material>) {
   // assuming sky, replacing later
   (*out).emissive = true;
   (*out).color = sky_color(normalize(pos));
@@ -234,7 +217,7 @@ fn material_world(pos: vec3f, normal: vec3f, out: ptr<function, Material>) {
 
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
-      mat_idx = MATERIAL_NORMAL_TEST;
+      mat_idx = 0;
     }
 
     inf_limit -= 1;
@@ -261,10 +244,10 @@ fn material_world(pos: vec3f, normal: vec3f, out: ptr<function, Material>) {
 
   if (mat_idx != -1) { // not sky
     if (mat_idx == 0) {
+      // TIRE
       (*out).emissive = false;
-      (*out).roughness = 0.3;
-      // (*out).color = vec3f(1, 0.9, 0.8);
-      (*out).color = vec3f(1, 0, 0);
+      (*out).roughness = 1;
+      (*out).color = vec3f(1, 0.9, 0.8) * ao;
     }
     else if (mat_idx == 1) {
       (*out).emissive = false;
@@ -444,12 +427,14 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   var prev_dist = -1.;
   var min_dist = FAR;
 
+  var step = 0u;
+
   for (var b = 0u; b < hit_domains; b++) {
     prev_dist = -1.;
     // starting at 0, or at the start of the hit domain
     var progress = max(0, hit_order[b].start);
 
-    for (var step = 0u; step <= MAX_STEPS; step++) {
+    for (; step <= MAX_STEPS; step++) {
       pos = ray_pos + ray_dir * progress;
       min_dist = sdf_world(pos);
 
@@ -493,7 +478,12 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
 
   var material: Material;
   (*out).normal = world_normals(pos);
-  material_world(pos, (*out).normal, &material);
+  
+  // approximating ambient occlusion
+  var ao = f32(step);
+  ao = ao / (8 + ao);
+  ao = 1 - pow(ao, 3);
+  material_world(pos, (*out).normal, ao, &material);
   (*out).material = material;
 }
 

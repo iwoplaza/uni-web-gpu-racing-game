@@ -16,8 +16,9 @@ class CameraSettings {
 
 	update() {
 		const origin = vec3.fromValues(0, 0, 0);
+		const rad = 0;
 		// const rad = Math.PI / 4;
-		const rad = Math.PI * (Date.now() / 5000);
+		// const rad = Math.PI * (Date.now() / 5000);
 
 		const viewMatrix = mat4.identity();
 		mat4.translate(viewMatrix, origin, viewMatrix);

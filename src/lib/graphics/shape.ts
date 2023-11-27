@@ -16,13 +16,13 @@ export abstract class ShapeCollection<Data> {
 	instanceToIdxMap = new Map<Shape<Data>, number>();
 	instanceToDomainMap = new Map<Shape<Data>, MarchDomain>();
 
+	bindGroupIdx: number = -1;
 	gpuCountBuffer: GPUBuffer;
 	gpuInstancesBuffer: GPUBuffer;
 
 	constructor(
 		private readonly key: string,
 		private readonly schema: std140.AlignedSchema<Data>,
-		private readonly bindGroupIdx: number,
 		private readonly device: GPUDevice,
 		private readonly domainAllocator: MarchDomainAllocator
 	) {
@@ -81,9 +81,28 @@ export abstract class ShapeCollection<Data> {
 		];
 	}
 
+	abstract readonly structPropertiesCode: string;
+
+	get definitionsCode() {
+		return `
+struct ${this.key}Shape {
+  ${this.structPropertiesCode}
+}
+
+@group(2) @binding(${this.bindGroupIdx}) var<storage, read> scene_${this.key}_count: u32;
+@group(2) @binding(${this.bindGroupIdx + 1}) var<storage, read> scene_${this.key}: array<${
+			this.key
+		}Shape, ${this.maxInstances}>;
+`;
+	}
+
 	uploadInstance(instance: Shape<Data>) {
 		let idx = this.instanceToIdxMap.get(instance);
 		if (idx === undefined) {
+			if (this.instances === this.maxInstances) {
+				throw new Error(`Reached ${this.key} allocation limit`);
+			}
+
 			// allocating index in memory
 			idx = this.instances;
 			this.instances++;
