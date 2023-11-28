@@ -3,10 +3,13 @@
 
   import GameEngine from '$lib/gameEngine';
   import CarGame from '$lib/carGame';
+  import { connect } from '$lib/clientSocket';
 
   let canvas!: HTMLCanvasElement;
 
   onMount(() => {
+    connect();
+
     let mounted = true;
     let gameEngine: GameEngine | null = null;
     const gameEnginePromise = GameEngine.initFromCanvas(canvas, new CarGame());

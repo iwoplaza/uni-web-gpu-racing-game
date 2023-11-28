@@ -1,5 +1,3 @@
-import { vec3 } from 'gl-matrix';
-
 // A class that represents each player's entity
 export class Player {
   playerId: string;
