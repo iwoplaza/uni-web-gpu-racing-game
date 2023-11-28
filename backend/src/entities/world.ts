@@ -1,5 +1,5 @@
-import { Car } from "./car";
-import { Player } from "./player";
+import { Car } from './car';
+import { Player } from './player';
 
 export class WorldState {
   cars: Map<string, Car>;
@@ -13,7 +13,7 @@ export class WorldState {
     this.cars.set(car.carId, car);
   }
 
-  getCarById(carId:string): Car {
+  getCarById(carId: string): Car {
     return this.cars.get(carId);
   }
 
@@ -24,5 +24,4 @@ export class WorldState {
   getPlayerById(playerId: string): Player {
     return this.players.get(playerId);
   }
-
 }
