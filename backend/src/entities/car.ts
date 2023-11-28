@@ -1,4 +1,4 @@
-import { vec3 } from "gl-matrix";
+import { vec3 } from 'gl-matrix';
 
 // Additional Car class, if separating concerns from Player entity
 export class Car {

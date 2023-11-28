@@ -5,7 +5,7 @@ export class Player {
   playerId: string;
   lapsCompleted: number;
   carId: string;
-  constructor(playerId:string, carId:string) {
+  constructor(playerId: string, carId: string) {
     this.playerId = playerId; // Player's identifier
     this.carId = carId; // Reference to the player's car by ID, not direct object
     this.lapsCompleted = 0; // Number of laps completed
