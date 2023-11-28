@@ -1,6 +1,27 @@
 import { SceneRenderer } from './graphics';
-import { CarWheelShape } from './graphics/carWheelShape';
+import type { GameEngineCtx } from './gameEngineCtx';
 import SceneInfo from './graphics/sceneInfo';
+
+export interface Game {
+	init(): void;
+
+	onRender(ctx: GameEngineCtx): void;
+}
+
+class GameEngineCtxImpl implements GameEngineCtx {
+	lastTime: number;
+	deltaTime: number = 0;
+
+	constructor(public readonly sceneInfo: SceneInfo) {
+		this.lastTime = Date.now();
+	}
+
+	tickRender() {
+		const now = Date.now();
+		this.deltaTime = now - this.lastTime;
+		this.lastTime = now;
+	}
+}
 
 type GameEngineOptions = {
 	device: GPUDevice;
@@ -13,12 +34,17 @@ class GameEngine {
 	private readonly device: GPUDevice;
 	private readonly renderer: SceneRenderer;
 
+	private ctx: GameEngineCtxImpl;
 	private sceneInfo: SceneInfo;
 
-	constructor({ device, canvasContext, canvasSize, presentationFormat }: GameEngineOptions) {
+	constructor(
+		{ device, canvasContext, canvasSize, presentationFormat }: GameEngineOptions,
+		private readonly game: Game
+	) {
 		this.device = device;
 
 		this.sceneInfo = new SceneInfo(device);
+		this.ctx = new GameEngineCtxImpl(this.sceneInfo);
 		this.renderer = new SceneRenderer(
 			device,
 			canvasContext,
@@ -38,27 +64,10 @@ class GameEngine {
 		// 	materialIdx: 2
 		// });
 		// sphereShapes.uploadInstance(lightSphere);
-
-		const wheel = new CarWheelShape();
-		this.sceneInfo.uploadInstance(wheel);
-
-		let prev = Date.now();
-		const updateWheel = () => {
-			const now = Date.now();
-			const dt = now - prev;
-			prev = now;
-
-			wheel.turnAngle += dt * 0.002;
-
-			this.sceneInfo.uploadInstance(wheel);
-
-			requestAnimationFrame(updateWheel);
-		};
-
-		updateWheel();
+		this.game.init();
 	}
 
-	static async initFromCanvas(canvas: HTMLCanvasElement) {
+	static async initFromCanvas(canvas: HTMLCanvasElement, game: Game) {
 		// Initializing WebGPU
 		const adapter = await navigator.gpu.requestAdapter();
 
@@ -82,12 +91,15 @@ class GameEngine {
 			alphaMode: 'premultiplied'
 		});
 
-		return new GameEngine({
-			device,
-			canvasContext: canvasCtx,
-			canvasSize: [canvas.width, canvas.height],
-			presentationFormat
-		});
+		return new GameEngine(
+			{
+				device,
+				canvasContext: canvasCtx,
+				canvasSize: [canvas.width, canvas.height],
+				presentationFormat
+			},
+			game
+		);
 	}
 
 	dispose() {
@@ -95,6 +107,10 @@ class GameEngine {
 	}
 
 	renderFrame() {
+		this.ctx.tickRender();
+
+		this.game.onRender(this.ctx);
+
 		const commandEncoder = this.device.createCommandEncoder();
 
 		this.renderer.render(commandEncoder);

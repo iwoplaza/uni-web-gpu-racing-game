@@ -15,15 +15,16 @@ class CameraSettings {
 	}
 
 	update() {
-		const origin = vec3.fromValues(0, 0, 0);
-		const rad = 0;
+		const origin = vec3.fromValues(0, 1, 0);
+		const distance = 7;
+		// const rad = 0;
 		// const rad = Math.PI / 4;
-		// const rad = Math.PI * (Date.now() / 5000);
+		const rad = Math.PI * (Date.now() / 5000);
 
 		const viewMatrix = mat4.identity();
 		mat4.translate(viewMatrix, origin, viewMatrix);
 		mat4.rotateY(viewMatrix, rad, viewMatrix);
-		mat4.translate(viewMatrix, vec3.fromValues(0, 0, -4), viewMatrix);
+		mat4.translate(viewMatrix, vec3.fromValues(0, 0, -distance), viewMatrix);
 		this.viewMatrix = viewMatrix as Float32Array;
 	}
 

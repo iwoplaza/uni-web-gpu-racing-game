@@ -40,14 +40,14 @@ export interface Shape {
 }
 
 class SceneInfo {
-	hostSceneInfo: SceneInfoStruct = {
+	private hostSceneInfo: SceneInfoStruct = {
 		numOfShapes: 0
 	};
 
+	private instanceToIdxMap = new Map<Shape, number>();
+
 	gpuSceneInfoBuffer: GPUBuffer;
 	gpuSceneShapesBuffer: GPUBuffer;
-
-	instanceToIdxMap = new Map<Shape, number>();
 
 	constructor(private readonly device: GPUDevice) {
 		this.gpuSceneInfoBuffer = device.createBuffer({

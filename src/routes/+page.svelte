@@ -1,13 +1,15 @@
 <script lang="ts">
-	import GameEngine from '$lib/gameEngine';
 	import { onMount } from 'svelte';
+
+	import GameEngine from '$lib/gameEngine';
+	import CarGame from '$lib/carGame';
 
 	let canvas!: HTMLCanvasElement;
 
 	onMount(() => {
 		let mounted = true;
 		let gameEngine: GameEngine | null = null;
-		const gameEnginePromise = GameEngine.initFromCanvas(canvas);
+		const gameEnginePromise = GameEngine.initFromCanvas(canvas, new CarGame());
 
 		let animationFrameHandle = -1;
 
