@@ -4,17 +4,17 @@ import type { Game } from './gameEngine';
 import type { GameEngineCtx } from './gameEngineCtx';
 
 class CarGame implements Game {
-	private objects: GameObject[] = [];
+  private objects: GameObject[] = [];
 
-	init(): void {
-		this.objects.push(new CarObject());
-	}
+  init(): void {
+    this.objects.push(new CarObject());
+  }
 
-	onRender(ctx: GameEngineCtx) {
-		for (const obj of this.objects) {
-			obj.render(ctx);
-		}
-	}
+  onRender(ctx: GameEngineCtx) {
+    for (const obj of this.objects) {
+      obj.render(ctx);
+    }
+  }
 }
 
 export default CarGame;

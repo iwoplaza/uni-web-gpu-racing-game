@@ -1,7 +1,7 @@
 import type { GameEngineCtx } from './gameEngineCtx';
 
 interface GameObject {
-	render(ctx: GameEngineCtx): void;
+  render(ctx: GameEngineCtx): void;
 }
 
 export default GameObject;

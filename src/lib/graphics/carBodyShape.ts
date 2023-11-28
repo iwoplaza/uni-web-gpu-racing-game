@@ -7,27 +7,27 @@ import { ShapeCollection, Shape } from './shape';
 
 type CarBodyStruct = Parsed<typeof CarBodyStruct>;
 const CarBodyStruct = std140.object({
-	transform: std140.mat4f
+  transform: std140.mat4f
 });
 
 export class CarBodyShapeCollection extends ShapeCollection<CarBodyStruct> {
-	constructor(device: GPUDevice, domainAllocator: MarchDomainAllocator) {
-		super('carbodies', CarBodyStruct, device, domainAllocator);
-	}
+  constructor(device: GPUDevice, domainAllocator: MarchDomainAllocator) {
+    super('carbodies', CarBodyStruct, device, domainAllocator);
+  }
 
-	structPropertiesCode = `
+  structPropertiesCode = `
 		transform: mat4x4<f32>,
 	`;
 }
 
 export class CarBodyShape extends Shape<CarBodyStruct> {
-	constructor(data: CarBodyStruct) {
-		super(data);
-	}
+  constructor(data: CarBodyStruct) {
+    super(data);
+  }
 
-	populateDomain(marchDomain: MarchDomain) {
-		marchDomain.kind = MarchDomainKind.AABB;
-		marchDomain.pos = [...vec3.negate(mat4.getTranslation(this.data.transform)).values()];
-		marchDomain.extra = 1; // assuming max radius for now
-	}
+  populateDomain(marchDomain: MarchDomain) {
+    marchDomain.kind = MarchDomainKind.AABB;
+    marchDomain.pos = [...vec3.negate(mat4.getTranslation(this.data.transform)).values()];
+    marchDomain.extra = 1; // assuming max radius for now
+  }
 }

@@ -1,7 +1,7 @@
 export const TimeInfoBuffer = (device: GPUDevice, bufferUsage: number) => {
   const buffer = device.createBuffer({
     size: Float32Array.BYTES_PER_ELEMENT,
-    usage: bufferUsage | GPUBufferUsage.COPY_DST,
+    usage: bufferUsage | GPUBufferUsage.COPY_DST
   });
 
   const cpuBuffer = new Float32Array(1);
@@ -16,8 +16,8 @@ export const TimeInfoBuffer = (device: GPUDevice, bufferUsage: number) => {
         0,
         cpuBuffer.buffer,
         cpuBuffer.byteOffset,
-        cpuBuffer.byteLength,
+        cpuBuffer.byteLength
       );
-    },
+    }
   };
 };

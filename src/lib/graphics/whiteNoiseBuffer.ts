@@ -1,12 +1,8 @@
-export const WhiteNoiseBuffer = (
-  device: GPUDevice,
-  elements: number,
-  bufferUsage: number,
-) => {
+export const WhiteNoiseBuffer = (device: GPUDevice, elements: number, bufferUsage: number) => {
   const buffer = device.createBuffer({
     size: elements * Float32Array.BYTES_PER_ELEMENT,
     usage: bufferUsage,
-    mappedAtCreation: true,
+    mappedAtCreation: true
   });
 
   {
