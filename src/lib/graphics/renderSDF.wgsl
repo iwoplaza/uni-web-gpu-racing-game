@@ -10,19 +10,8 @@ struct MarchResult {
   normal: vec3f,
 }
 
-const DOMAIN_AABB = 0u;
-const DOMAIN_PLANE = 1u;
-
-struct MarchDomain {
-  kind: u32,
-  pos: vec3f,
-  extra: vec3f,
-}
-
-const MAX_DOMAINS = 64;  // TODO: Parametrize
-
 struct SceneInfo {
-  num_of_domains: u32
+  num_of_shapes: u32
 }
 
 const WIDTH = {{WIDTH}};
@@ -38,16 +27,26 @@ const SUB_SAMPLES = 1;
 const MAX_REFL = 1u;
 const FAR = 100.;
 
+{{SHAPE_KIND_DEFINITIONS}}
+
+const MAX_INSTANCES = 64;
+
+struct SceneShape {
+  kind: u32,
+  material_idx: u32,
+  extra1: u32,
+  extra2: u32,
+  transform: mat4x4<f32>,
+}
+
 @group(0) @binding(0) var<storage, read> white_noise_buffer: array<f32, WHITE_NOISE_BUFFER_SIZE>;
 @group(0) @binding(1) var<uniform> time: f32;
 
 @group(1) @binding(0) var output_tex: texture_storage_2d<{{OUTPUT_FORMAT}}, write>;
 
-@group(2) @binding(0) var<storage, read> scene_info: SceneInfo;
-@group(2) @binding(1) var<storage, read> view_matrix: mat4x4<f32>;
-@group(2) @binding(2) var<storage, read> scene_domains: array<MarchDomain, MAX_DOMAINS>;
-
-{{SHAPE_DEFINITIONS}}
+@group(2) @binding(0) var<storage, read> view_matrix: mat4x4<f32>;
+@group(2) @binding(1) var<storage, read> scene_info: SceneInfo;
+@group(2) @binding(2) var<storage, read> scene_shapes: array<SceneShape, MAX_INSTANCES>;
 
 const MATERIAL_NORMAL_TEST = 100;
 
@@ -151,29 +150,26 @@ fn sdf_sphere(pos: vec3f, o: vec3f, r: f32) -> f32 {
   return distance(pos, o) - r;
 }
 
-fn sdf_world(pos: vec3f) -> f32 {
-  var min_dist = FAR;
+fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
+  let kind = scene_shapes[idx].kind;
+  let t_pos = scene_shapes[idx].transform * vec4f(pos, 1.0);
 
-  var inf_limit = 100;
-
-  for (var idx = 0u; idx < scene_carwheels_count; idx++) {
-    let t_pos = scene_carwheels[idx].transform * vec4f(pos, 1.0);
-    let obj_dist = sdf_wheel(t_pos.xyz);
-
-    if (obj_dist < min_dist) {
-      min_dist = obj_dist;
-    }
-
-    inf_limit -= 1;
-    if (inf_limit <= 0) {
-      // TOO MANY ITERATIONS
-      break;
-    }
+  if (kind == SHAPE_SPHERE) {
+    return sdf_sphere(t_pos.xyz, vec3f(0., 0., 0.), 1);
+  }
+  else if (kind == SHAPE_CAR_WHEEL) {
+    return sdf_wheel(t_pos.xyz);
   }
 
-  for (var idx = 0u; idx < scene_spheres_count; idx++) {
-    let obj_dist = sdf_sphere(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
+  return FAR;
+}
 
+fn sdf_world(pos: vec3f) -> f32 {
+  var min_dist = FAR;
+  var inf_limit = 100;
+
+  for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
+    let obj_dist = sdf_scene_shape(pos, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
     }
@@ -208,31 +204,13 @@ fn material_world(pos: vec3f, normal: vec3f, ao: f32, out: ptr<function, Materia
 
   var mat_idx = -1;
   var min_dist = FAR;
-
   var inf_limit = 100;
 
-  for (var idx = 0u; idx < scene_carwheels_count; idx++) {
-    let t_pos = scene_carwheels[idx].transform * vec4f(pos, 1.0);
-    let obj_dist = sdf_wheel(t_pos.xyz);
-
+  for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
+    let obj_dist = sdf_scene_shape(pos, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
-      mat_idx = 0;
-    }
-
-    inf_limit -= 1;
-    if (inf_limit <= 0) {
-      // TOO MANY ITERATIONS
-      break;
-    }
-  }
-
-  for (var idx = 0u; idx < scene_spheres_count; idx++) {
-    let obj_dist = sdf_sphere(pos, scene_spheres[idx].xyzr.xyz, scene_spheres[idx].xyzr.w);
-
-    if (obj_dist < min_dist) {
-      min_dist = obj_dist;
-      mat_idx = i32(scene_spheres[idx].material_idx);
+      mat_idx = i32(scene_shapes[idx].material_idx);
     }
 
     inf_limit -= 1;
@@ -284,107 +262,6 @@ fn world_normals(point: vec3f) -> vec3f {
   ) / epsilon;
 }
 
-struct RayHitInfo {
-  start: f32,
-  end: f32,
-}
-
-/**
- * Calcs intersection and exit distances, and normal at intersection.
- * The ray must be in box/object space. If you have multiple boxes all
- * aligned to the same axis, you can precompute 1/rd. If you have
- * multiple boxes but they are not alligned to each other, use the 
- * "Generic" box intersector bellow this one.
- * 
- * @see {https://iquilezles.org/articles/boxfunctions/}
- * @author {Inigo Quilez}
- */
-fn ray_to_box(ro: vec3f, inv_ray_dir: vec3f, rad: vec3f, near_hit: ptr<function, f32>, far_hit: ptr<function, f32>) {
-  let n = inv_ray_dir * ro;
-
-  let k = abs(inv_ray_dir) * rad;
-
-  let t1 = -n - k;
-  let t2 = -n + k;
-
-  let tN = max(max(t1.x, t1.y), t1.z);
-  let tF = min(min(t2.x, t2.y), t2.z);
-
-  if(tN > tF || tF < 0.)
-  {
-    // no intersection
-    *near_hit = -1.;
-    *far_hit = -1.;
-  }
-  else
-  {
-    *near_hit = tN;
-    *far_hit = tF;
-  }
-}
-
-/**
- * @param pn Plane normal. Must be normalized
- */
-fn ray_to_plane(ro: vec3f, rd: vec3f, pn: vec3f, d: f32) -> f32 {
-  return -(dot(ro, pn) + d) / dot(rd, pn);
-}
-
-fn sort_primitives(ray_pos: vec3f, ray_dir: vec3f, out_hit_order: ptr<function, array<RayHitInfo, MAX_DOMAINS>>) -> u32 {
-  var list_length = 0u;
-
-  let inv_ray_dir = vec3f(
-    1. / ray_dir.x,
-    1. / ray_dir.y,
-    1. / ray_dir.z,
-  );
-
-  for (var i = 0u; i < scene_info.num_of_domains; i++) {
-    var domain = scene_domains[i];
-
-    var near_hit = -1.;
-    var far_hit = -1.;
-
-    if (domain.kind == DOMAIN_PLANE) {
-      if (dot(ray_dir, domain.extra /* normal */) < 0) {
-        let d = -dot(domain.pos, domain.extra /* normal */);
-        near_hit = ray_to_plane(ray_pos, ray_dir, domain.extra /* normal */, d);
-        far_hit = FAR;
-      }
-    }
-    else {
-      ray_to_box(ray_pos - domain.pos, inv_ray_dir, domain.extra, &near_hit, &far_hit);
-    }
-
-    if (far_hit <= 0) {
-      continue;
-    }
-
-    // Insertion sort
-    let el = &(*out_hit_order)[list_length];
-    (*el).start = near_hit;
-    (*el).end = far_hit;
-
-    for (var s = list_length - 1; s >= 0; s--) {
-      let elA = &(*out_hit_order)[s];
-      let elB = &(*out_hit_order)[s + 1];
-      if ((*elA).start <= (*elB).start)
-      {
-        // Good order
-        break;
-      }
-
-      // Swap
-      let tmp = *elA;
-      *elA = *elB;
-      *elB = tmp;
-    }
-    list_length++;
-  }
-
-  return list_length;
-}
-
 fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<function, vec3f>) {
   var dir = vec4f(
     (coord / vec2f(WIDTH, HEIGHT)) * 2. - 1.,
@@ -405,63 +282,38 @@ fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<funct
 }
 
 fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
-  var hit_order = array<RayHitInfo, MAX_DOMAINS>();
-  let hit_domains = sort_primitives(ray_pos, ray_dir, /*out*/ &hit_order);
-
-  // -- TEST
-  // hit_order[0].start = 0;
-  // hit_order[0].end = 10;
-  // let hit_domains = 1u;
-  // -- END TEST
-
-  // Did not hit any domains
-  if (hit_domains == 0) {
-    // Sky color
-    (*out).material.color = sky_color(ray_dir);
-    (*out).material.emissive = true;
-    (*out).normal = -ray_dir;
-    return;
-  }
-
   var pos = ray_pos;
   var prev_dist = -1.;
   var min_dist = FAR;
 
   var step = 0u;
+  var progress = 0.;
 
-  for (var b = 0u; b < hit_domains; b++) {
-    prev_dist = -1.;
-    // starting at 0, or at the start of the hit domain
-    var progress = max(0, hit_order[b].start);
+  for (; step <= MAX_STEPS; step++) {
+    pos = ray_pos + ray_dir * progress;
+    min_dist = sdf_world(pos);
 
-    for (; step <= MAX_STEPS; step++) {
-      pos = ray_pos + ray_dir * progress;
-      min_dist = sdf_world(pos);
-
-      // Inside volume?
-      if (min_dist <= 0. && prev_dist > 0.) {
-        // No need to check more objects.
-        b = hit_domains;
-        break;
-      }
-
-      if (min_dist < SURFACE_DIST && min_dist < prev_dist) {
-        // No need to check more objects.
-        b = hit_domains;
-        break;
-      }
-
-      // march forward safely
-      progress += min_dist;
-
-      if (progress > hit_order[b].end)
-      {
-        // Stop checking this domain.
-        break;
-      }
-
-      prev_dist = min_dist;
+    // Inside volume?
+    if (min_dist <= 0. && prev_dist > 0.) {
+      // No need to check more objects.
+      break;
     }
+
+    if (min_dist < SURFACE_DIST && min_dist < prev_dist) {
+      // No need to check more objects.
+      break;
+    }
+
+    // march forward safely
+    progress += min_dist;
+
+    if (progress > FAR)
+    {
+      // Stop checking.
+      break;
+    }
+
+    prev_dist = min_dist;
   }
 
   (*out).position = pos;
@@ -480,9 +332,9 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   (*out).normal = world_normals(pos);
   
   // approximating ambient occlusion
-  var ao = f32(step);
-  ao = ao / (8 + ao);
-  ao = 1 - pow(ao, 3);
+  var ao = max(0, f32(step));
+  ao = ao / (1 + ao);
+  ao = 1 - pow(ao, 20);
   material_world(pos, (*out).normal, ao, &material);
   (*out).material = material;
 }

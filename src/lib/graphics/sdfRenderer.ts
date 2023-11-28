@@ -4,9 +4,10 @@ import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
 import CameraSettings from './cameraSettings';
 import type GBuffer from './gBuffer';
-import type { Scene } from './scene';
+import type SceneInfo from './sceneInfo';
+import { shapeKindDefinitions } from './sceneInfo';
 
-export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) => {
+export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: SceneInfo) => {
 	const LABEL = `SDF Renderer`;
 	const blockDim = 8;
 	const whiteNoiseBufferSize = 512 * 512;
@@ -15,12 +16,6 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 	const camera = new CameraSettings(device);
 	const whiteNoiseBuffer = WhiteNoiseBuffer(device, whiteNoiseBufferSize, GPUBufferUsage.STORAGE);
 	const timeInfoBuffer = TimeInfoBuffer(device, GPUBufferUsage.UNIFORM);
-
-	let bindGroupIdx = 3;
-	for (const collection of scene.shapeCollections) {
-		collection.bindGroupIdx = bindGroupIdx;
-		bindGroupIdx += 2;
-	}
 
 	const mainBindGroupLayout = device.createBindGroupLayout({
 		label: `${LABEL} - Main Bind Group Layout`,
@@ -58,7 +53,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 	const sceneBindGroupLayout = device.createBindGroupLayout({
 		label: `${LABEL} - Scene Bind Group Layout`,
 		entries: [
-			// scene_info
+			// view_matrix
 			{
 				binding: 0,
 				visibility: GPUShaderStage.COMPUTE,
@@ -66,7 +61,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 					type: 'read-only-storage'
 				}
 			},
-			// view_matrix
+			// scene_info
 			{
 				binding: 1,
 				visibility: GPUShaderStage.COMPUTE,
@@ -74,15 +69,14 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 					type: 'read-only-storage'
 				}
 			},
-			// scene_domains
+			// scene_shapes
 			{
 				binding: 2,
 				visibility: GPUShaderStage.COMPUTE,
 				buffer: {
 					type: 'read-only-storage'
 				}
-			},
-			...scene.shapeCollections.map((c) => c.bindGroupLayout).flat()
+			}
 		]
 	});
 
@@ -114,23 +108,23 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 			{
 				binding: 0,
 				resource: {
-					buffer: scene.sceneInfo.gpuSceneInfoBuffer
-				}
-			},
-			{
-				binding: 1,
-				resource: {
 					buffer: camera.gpuBuffer
 				}
 			},
-			// scene_domains
+			// scene_info
+			{
+				binding: 1,
+				resource: {
+					buffer: sceneInfo.gpuSceneInfoBuffer
+				}
+			},
+			// scene_shapes
 			{
 				binding: 2,
 				resource: {
-					buffer: scene.sceneInfo.gpuDomainsBuffer
+					buffer: sceneInfo.gpuSceneShapesBuffer
 				}
-			},
-			...scene.shapeCollections.map((c) => c.bindGroup).flat()
+			}
 		]
 	});
 
@@ -159,7 +153,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, scene: Scene) =
 					HEIGHT: `${mainPassSize[1]}`,
 					BLOCK_SIZE: `${blockDim}`,
 					WHITE_NOISE_BUFFER_SIZE: `${whiteNoiseBufferSize}`,
-					SHAPE_DEFINITIONS: `${scene.definitionsCode}`
+					SHAPE_KIND_DEFINITIONS: shapeKindDefinitions
 				})
 			}),
 			entryPoint: 'main_frag'

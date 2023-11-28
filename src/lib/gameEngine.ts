@@ -1,8 +1,6 @@
-import { mat4, vec3 } from 'wgpu-matrix';
-
 import { SceneRenderer } from './graphics';
 import { CarWheelShape } from './graphics/carWheelShape';
-import { Scene } from './graphics/scene';
+import SceneInfo from './graphics/sceneInfo';
 
 type GameEngineOptions = {
 	device: GPUDevice;
@@ -15,18 +13,18 @@ class GameEngine {
 	private readonly device: GPUDevice;
 	private readonly renderer: SceneRenderer;
 
-	private scene: Scene;
+	private sceneInfo: SceneInfo;
 
 	constructor({ device, canvasContext, canvasSize, presentationFormat }: GameEngineOptions) {
 		this.device = device;
 
-		this.scene = new Scene(device);
+		this.sceneInfo = new SceneInfo(device);
 		this.renderer = new SceneRenderer(
 			device,
 			canvasContext,
 			canvasSize,
 			presentationFormat,
-			this.scene
+			this.sceneInfo
 		);
 
 		// const centerSphere = new SphereShape({
@@ -41,18 +39,19 @@ class GameEngine {
 		// });
 		// sphereShapes.uploadInstance(lightSphere);
 
-		const wheel = new CarWheelShape({
-			transform: [...mat4.translation(vec3.fromValues(0, 0, 0)).values()]
-		});
-		this.scene.carWheelShapes.uploadInstance(wheel);
+		const wheel = new CarWheelShape();
+		this.sceneInfo.uploadInstance(wheel);
 
 		let prev = Date.now();
 		const updateWheel = () => {
 			const now = Date.now();
 			const dt = now - prev;
 			prev = now;
-			mat4.rotateY(wheel.data.transform, dt * 0.002, wheel.data.transform);
-			this.scene.carWheelShapes.uploadInstance(wheel);
+
+			wheel.turnAngle += dt * 0.002;
+
+			this.sceneInfo.uploadInstance(wheel);
+
 			requestAnimationFrame(updateWheel);
 		};
 
