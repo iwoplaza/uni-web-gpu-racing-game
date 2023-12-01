@@ -37,6 +37,8 @@ class GameEngine {
   private ctx: GameEngineCtxImpl;
   private sceneInfo: SceneInfo;
 
+  private stopAnimationLoop: () => void;
+
   constructor(
     { device, canvasContext, canvasSize, presentationFormat }: GameEngineOptions,
     private readonly game: Game
@@ -53,18 +55,14 @@ class GameEngine {
       this.sceneInfo
     );
 
-    // const centerSphere = new SphereShape({
-    // 	xyzr: [1, 0, 1, 2],
-    // 	materialIdx: 1
-    // });
-    // sphereShapes.uploadInstance(centerSphere);
-
-    // const lightSphere = new SphereShape({
-    // 	xyzr: [-1, 0, 1, 0.5],
-    // 	materialIdx: 2
-    // });
-    // sphereShapes.uploadInstance(lightSphere);
     this.game.init();
+
+    const animationLoop = () => {
+      animationFrameHandle = requestAnimationFrame(animationLoop);
+      this.renderFrame();
+    };
+    let animationFrameHandle = requestAnimationFrame(animationLoop);
+    this.stopAnimationLoop = () => cancelAnimationFrame(animationFrameHandle);
   }
 
   static async initFromCanvas(canvas: HTMLCanvasElement, game: Game) {
@@ -104,6 +102,7 @@ class GameEngine {
 
   dispose() {
     // Dispose of resources here
+    this.stopAnimationLoop();
   }
 
   renderFrame() {

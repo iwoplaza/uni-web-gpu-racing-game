@@ -2,6 +2,7 @@ import { type Parsed, BufferWriter, MaxValue } from 'typed-binary';
 
 import { roundUp } from '$lib/mathUtils';
 import * as std140 from './std140';
+import CameraSettings from './cameraSettings';
 
 type SceneInfoStruct = Parsed<typeof SceneInfoStruct>;
 const SceneInfoStruct = std140.object({
@@ -49,7 +50,11 @@ class SceneInfo {
   gpuSceneInfoBuffer: GPUBuffer;
   gpuSceneShapesBuffer: GPUBuffer;
 
+  public camera: CameraSettings;
+
   constructor(private readonly device: GPUDevice) {
+    this.camera = new CameraSettings(device);
+
     this.gpuSceneInfoBuffer = device.createBuffer({
       label: 'Scene Info Buffer',
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,

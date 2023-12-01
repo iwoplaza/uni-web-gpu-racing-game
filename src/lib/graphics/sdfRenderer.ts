@@ -2,7 +2,6 @@ import renderSDFWGSL from './renderSDF.wgsl?raw';
 import { preprocessShaderCode } from './preprocessShaderCode';
 import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
-import CameraSettings from './cameraSettings';
 import type GBuffer from './gBuffer';
 import type SceneInfo from './sceneInfo';
 import { shapeKindDefinitions } from './sceneInfo';
@@ -13,7 +12,6 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   const whiteNoiseBufferSize = 512 * 512;
   const mainPassSize = gBuffer.rawRender.size;
 
-  const camera = new CameraSettings(device);
   const whiteNoiseBuffer = WhiteNoiseBuffer(device, whiteNoiseBufferSize, GPUBufferUsage.STORAGE);
   const timeInfoBuffer = TimeInfoBuffer(device, GPUBufferUsage.UNIFORM);
 
@@ -108,7 +106,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
       {
         binding: 0,
         resource: {
-          buffer: camera.gpuBuffer
+          buffer: sceneInfo.camera.gpuBuffer
         }
       },
       // scene_info
@@ -163,8 +161,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   return {
     perform(commandEncoder: GPUCommandEncoder) {
       timeInfoBuffer.update();
-      camera.update();
-      camera.queueWrite();
+      sceneInfo.camera.queueWrite();
 
       const mainPass = commandEncoder.beginComputePass();
 

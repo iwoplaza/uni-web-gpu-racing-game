@@ -1,33 +1,32 @@
-import { mat4, vec3 } from 'wgpu-matrix';
-import type { Parsed } from 'typed-binary';
+import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 
-import * as std140 from './std140';
-import { MarchDomainKind, type MarchDomainAllocator, MarchDomain } from './marchDomain';
-import { ShapeCollection, Shape } from './shape';
+import { ShapeKind, type Shape, type ShapeStruct } from './sceneInfo';
 
-type CarBodyStruct = Parsed<typeof CarBodyStruct>;
-const CarBodyStruct = std140.object({
-  transform: std140.mat4f
-});
+export class CarBodyShape implements Shape {
+  _parentMatrix = [...mat4.identity().values()];
+  position = [0, 0, 0];
 
-export class CarBodyShapeCollection extends ShapeCollection<CarBodyStruct> {
-  constructor(device: GPUDevice, domainAllocator: MarchDomainAllocator) {
-    super('carbodies', CarBodyStruct, device, domainAllocator);
+  constructor(pos: [number, number, number]) {
+    this.position = pos;
   }
 
-  structPropertiesCode = `
-		transform: mat4x4<f32>,
-	`;
-}
-
-export class CarBodyShape extends Shape<CarBodyStruct> {
-  constructor(data: CarBodyStruct) {
-    super(data);
+  set parentMatrix(value: Mat4) {
+    mat4.copy(value, this._parentMatrix);
   }
 
-  populateDomain(marchDomain: MarchDomain) {
-    marchDomain.kind = MarchDomainKind.AABB;
-    marchDomain.pos = [...vec3.negate(mat4.getTranslation(this.data.transform)).values()];
-    marchDomain.extra = 1; // assuming max radius for now
+  get data(): Readonly<ShapeStruct> {
+    const transform = mat4.identity();
+    mat4.scale(transform, vec3.fromValues(1, 1, 1), transform);
+    mat4.translate(transform, vec3.negate(this.position), transform);
+
+    mat4.mul(transform, this._parentMatrix, transform);
+
+    return {
+      kind: ShapeKind.CAR_BODY,
+      materialIdx: 100,
+      extra1: 0,
+      extra2: 0,
+      transform: [...transform.values()]
+    };
   }
 }

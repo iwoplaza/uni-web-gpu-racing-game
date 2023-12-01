@@ -1,43 +1,32 @@
-import { World } from 'miniplex';
 import type http from 'node:http';
 import { Server } from 'socket.io';
-import { vec3 } from 'wgpu-matrix';
 
-import type { PlayerEntity } from '$lib/common/entities/types';
+import GameInstance from './src/lib/common/gameInstance';
+
+const TICK_RATE = 1000 / 30; // 30 FPS
 
 export default function injectSocketIO(server: http.Server) {
   const io = new Server(server);
 
-  const world = new World<PlayerEntity>();
-  const TICK_RATE = 1000 / 60; // 60 FPS
-
-  io.on('connection', (socket) => {
-    console.log('a user connected', socket.id);
-
-    const playerEntity: PlayerEntity = {
-      position: vec3.fromValues(0, 0, 0),
-      velocity: vec3.fromValues(0, 0, 0),
-      playerId: socket.id
-    };
-    world.add(playerEntity);
-    socket.on('disconnect', () => {
-      console.log('user disconnected', socket.id);
-      world.where((p) => p.playerId == socket.id);
-    });
-  });
-
-  function movementSystem() {
-    const movingEntities = world.with('position', 'velocity');
-    for (const entity of movingEntities) {
-      vec3.add(entity.position, entity.velocity, entity.position);
-    }
-  }
+  const gameInstance = new GameInstance();
 
   setInterval(() => {
-    movementSystem();
-    const state = world.entities;
-    io.emit('gameUpdate', state);
+    gameInstance.tick();
+
+    const state = gameInstance.world.entities;
+    io.emit('game-update', state);
   }, TICK_RATE);
+
+  io.on('connection', (socket) => {
+    socket.emit('initial-state', gameInstance.world.entities);
+
+    const playerEntity = gameInstance.addPlayer(socket.id);
+    socket.on('disconnect', () => {
+      gameInstance.removePlayer(socket.id);
+    });
+
+    io.emit('player-connected', playerEntity);
+  });
 
   console.log('SocketIO injected');
 }
