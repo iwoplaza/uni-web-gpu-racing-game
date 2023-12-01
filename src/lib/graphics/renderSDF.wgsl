@@ -123,6 +123,11 @@ fn sdf2_box(p: vec2f, b: vec2f) -> f32 {
   return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0);
 }
 
+fn sdf_box(p: vec3f, b: vec3f) -> f32 {
+  let q = abs(p) - b;
+  return length(max(q, vec3f(0., 0., 0.))) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+
 fn sdf_wheel(pos: vec3f) -> f32 {
   let pos2 = op_revolve_x(pos, 0.5);
 
@@ -131,7 +136,7 @@ fn sdf_wheel(pos: vec3f) -> f32 {
       sdf2_box(pos2, vec2f(0.2)),
       0.2 // roundness
     ),
-      // union with
+    // union with
     min(
       op_round(
         sdf2_box(pos2 + vec2f(0.25, -0.25), vec2f(0.2, 0.05)),
@@ -150,6 +155,13 @@ fn sdf_sphere(pos: vec3f, o: vec3f, r: f32) -> f32 {
   return distance(pos, o) - r;
 }
 
+fn sdf_car_body(pos: vec3f) -> f32 {
+  return min(
+    sdf_box(pos, vec3f(2, 0.5, 3)),
+    op_round(sdf_box(pos + vec3f(0, 0, -5.5), vec3f(2, 0.07, .3)), 0.5),
+  );
+}
+
 fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
   let t_pos = scene_shapes[idx].transform * vec4f(pos, 1.0);
@@ -159,6 +171,9 @@ fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
   }
   else if (kind == SHAPE_CAR_WHEEL) {
     return sdf_wheel(t_pos.xyz);
+  }
+  else if (kind == SHAPE_CAR_BODY) {
+    return sdf_car_body(t_pos.xyz);
   }
 
   return FAR;

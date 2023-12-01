@@ -1,38 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
+  import { createCarGame } from '$lib/carGame';
   import GameEngine from '$lib/gameEngine';
-  import CarGame from '$lib/carGame';
+  import { connect, disconnect } from '$lib/clientSocket';
+  import GameInstance from '$lib/common/gameInstance';
 
   let canvas!: HTMLCanvasElement;
 
   onMount(() => {
-    let mounted = true;
-    let gameEngine: GameEngine | null = null;
-    const gameEnginePromise = GameEngine.initFromCanvas(canvas, new CarGame());
+    const gameEnginePromise = (async () => {
+      const gameInstance = new GameInstance();
+      const socketId = connect(gameInstance);
+      const carGame = createCarGame(gameInstance);
 
-    let animationFrameHandle = -1;
-
-    gameEnginePromise.then((engine) => {
-      if (mounted) {
-        gameEngine = engine;
-        function run() {
-          animationFrameHandle = requestAnimationFrame(run);
-
-          engine.renderFrame();
-        }
-        run();
-      } else {
-        engine.dispose();
-      }
-    });
-
+      return GameEngine.initFromCanvas(canvas, carGame);
+    })();
     return () => {
-      if (gameEngine) {
-        cancelAnimationFrame(animationFrameHandle);
-        gameEngine.dispose();
-      }
-      mounted = false;
+      gameEnginePromise.then((e) => e.dispose());
+      disconnect();
     };
   });
 </script>
