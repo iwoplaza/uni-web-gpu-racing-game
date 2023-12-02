@@ -5,10 +5,9 @@
   import GameEngine from '$lib/gameEngine';
   import { clientSocket, connect, disconnect } from '$lib/clientSocket';
   import GameInstance from '$lib/common/gameInstance';
-    import type { Socket } from 'socket.io';
 
   let canvas!: HTMLCanvasElement;
-
+  let adress: string = "localhost";
   onMount(() => {
 
   });
@@ -30,12 +29,12 @@
     {:else}
     <div>
       <p>Server adress</p>
-      <input type="text" placeholder="localhost"/>
+      <input bind:value={adress} type="text" placeholder="localhost"/>
       <button on:click={()=>
         {
           const gameEnginePromise = (async () => {
             const gameInstance = new GameInstance();
-            connect(gameInstance);
+            connect(gameInstance, adress);
             const carGame = createCarGame(gameInstance);
           
             return GameEngine.initFromCanvas(canvas, carGame);

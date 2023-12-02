@@ -10,7 +10,7 @@ export class ClientSocket {
   socket: Socket;
 
   constructor(private gameInstance: GameInstance, endpoint?: string) {
-    this.socket = endpoint ? io(endpoint) : io();
+    this.socket = endpoint && endpoint!=="localhost" ? io(endpoint) : io();
 
     this.socket.on('connect', () => {
       console.log(`Connected to server`);
