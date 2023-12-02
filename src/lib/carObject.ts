@@ -8,6 +8,7 @@ import type { Entity } from './common/systems';
 import { mat4, vec3 } from 'wgpu-matrix';
 
 class CarObject implements GameObject {
+  
   position: [number, number, number];
   velocity: [number, number, number];
   yawAngle: number;
@@ -47,6 +48,23 @@ class CarObject implements GameObject {
 
     return worldMatrix;
   }
+  turnRight() {
+    const angle = this.wheels[0].turnAngle;
+    console.log('turn')
+    this.wheels[0].turnAngle = angle + 0.1;
+    this.wheels[1].turnAngle = angle + 0.1;
+  }
+  turnLeft() {
+    const angle = this.wheels[0].turnAngle;
+    this.wheels[0].turnAngle = angle - 0.1;
+    this.wheels[1].turnAngle = angle - 0.1;
+  }
+  brake() {
+      this.position[2] -= 1;
+  }
+  accelerate() {
+      this.position[2] += 1;
+  }
 
   onServerUpdate() {
     this.position = [...this.serverEntity.position];
@@ -63,8 +81,9 @@ class CarObject implements GameObject {
   render(ctx: GameEngineCtx) {
     const worldMatrix = this.worldMatrix;
 
-    this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
-    this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
+    // this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
+    // this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
+
     this.wheels[2].turnAngle = 0;
     this.wheels[3].turnAngle = Math.PI;
 

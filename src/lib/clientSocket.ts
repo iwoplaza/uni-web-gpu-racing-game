@@ -37,7 +37,7 @@ export class ClientSocket {
     });
 
     this.socket.on('game-update', (entities: Entity[]) => {
-      console.log('Received game update');
+      // console.log('Received game update');
 
       // Updating all players
       for (const entity of entities) {

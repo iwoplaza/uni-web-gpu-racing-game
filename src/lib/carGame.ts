@@ -3,11 +3,14 @@ import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import type GameInstance from './common/gameInstance';
 import type { GameEngineCtx } from './gameEngineCtx';
+import { InputHandler } from './inputHandler';
+import { get } from 'svelte/store';
+import { clientSocket } from './clientSocket';
 
 export let carGame: CarGame | null = null;
 
-export function createCarGame(gameInstance: GameInstance) {
-  carGame = new CarGame(gameInstance);
+export function createCarGame(gameInstance: GameInstance, document: Document) {
+  carGame = new CarGame(gameInstance, document);
   return carGame;
 }
 
@@ -16,8 +19,9 @@ class CarGame implements Game {
   private playerIdToCarMap = new Map<string, CarObject>();
   private myCar: CarObject | undefined;
   private objects: GameObject[] = [];
+  private readonly inputHandler: InputHandler;
 
-  constructor(private readonly gameInstance: GameInstance) {
+  constructor(private readonly gameInstance: GameInstance, document: Document) {
     gameInstance.onPlayerUpdated = (player) => {
       const car = this.playerIdToCarMap.get(player.playerId);
       if (!car) {
@@ -35,7 +39,10 @@ class CarGame implements Game {
         this.objects.push(car);
 
         if (e.playerId === this.myId) {
+          console.log('My car!')
+          console.log(car)
           this.myCar = car;
+          this.inputHandler.car = car;
         }
       }
     });
@@ -50,13 +57,14 @@ class CarGame implements Game {
 
         if (e.playerId === this.myId) {
           this.myCar = undefined;
+          this.inputHandler.car = null;
         }
       }
     });
+    this.inputHandler = new InputHandler(document);
   }
 
   init(): void {}
-
   onRender(ctx: GameEngineCtx) {
     if (this.myCar) {
       ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix;
@@ -65,6 +73,14 @@ class CarGame implements Game {
     for (const obj of this.objects) {
       obj.render(ctx);
     }
+    this.sendUpdate();
+  }
+  sendUpdate() {
+    const socket = get(clientSocket);
+    if (!socket) {
+      return;
+    }
+    socket.socket.emit('game-update', this.gameInstance.world.entities.filter((e) => e.playerId === this.myId));
   }
 }
 
