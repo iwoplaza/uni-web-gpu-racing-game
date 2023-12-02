@@ -80,7 +80,6 @@ class CarObject implements GameObject {
 
   render(ctx: GameEngineCtx) {
     const worldMatrix = this.worldMatrix;
-
     // this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
     // this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
 

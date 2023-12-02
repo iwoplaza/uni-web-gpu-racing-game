@@ -9,8 +9,8 @@ import { clientSocket } from './clientSocket';
 
 export let carGame: CarGame | null = null;
 
-export function createCarGame(gameInstance: GameInstance, document: Document) {
-  carGame = new CarGame(gameInstance, document);
+export function createCarGame(gameInstance: GameInstance) {
+  carGame = new CarGame(gameInstance);
   return carGame;
 }
 
@@ -21,7 +21,7 @@ class CarGame implements Game {
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
 
-  constructor(private readonly gameInstance: GameInstance, document: Document) {
+  constructor(private readonly gameInstance: GameInstance) {
     gameInstance.onPlayerUpdated = (player) => {
       const car = this.playerIdToCarMap.get(player.playerId);
       if (!car) {
@@ -61,7 +61,7 @@ class CarGame implements Game {
         }
       }
     });
-    this.inputHandler = new InputHandler(document);
+    this.inputHandler = new InputHandler();
   }
 
   init(): void {}

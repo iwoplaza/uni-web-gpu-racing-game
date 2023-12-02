@@ -3,9 +3,9 @@ import type CarObject from "./carObject";
 export class InputHandler
 {
     public car: CarObject | null = null
-    constructor( private document: Document)
+    constructor( )
     {
-        this.document.addEventListener('keydown', (event) => {this.onKeyDown(event)});
+        document.addEventListener('keydown', (event) => {this.onKeyDown(event)});
     }
     onKeyDown(event: KeyboardEvent)
     {

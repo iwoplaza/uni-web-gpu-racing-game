@@ -35,7 +35,7 @@
           const gameEnginePromise = (async () => {
             const gameInstance = new GameInstance();
             connect(gameInstance, adress);
-            const carGame = createCarGame(gameInstance, document);
+            const carGame = createCarGame(gameInstance);
           
             return GameEngine.initFromCanvas(canvas, carGame);
           })();
