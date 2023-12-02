@@ -6,6 +6,8 @@ import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
 import type { Entity } from './common/systems';
 import { mat4, vec3 } from 'wgpu-matrix';
+import { carGame } from './carGame';
+import { SendUpdate } from './utils/sendUpdate';
 
 class CarObject implements GameObject {
   
@@ -50,7 +52,6 @@ class CarObject implements GameObject {
   }
   turnRight() {
     const angle = this.wheels[0].turnAngle;
-    console.log('turn')
     this.wheels[0].turnAngle = angle + 0.1;
     this.wheels[1].turnAngle = angle + 0.1;
   }
@@ -60,10 +61,13 @@ class CarObject implements GameObject {
     this.wheels[1].turnAngle = angle - 0.1;
   }
   brake() {
-      this.position[2] -= 1;
+    this.serverEntity.velocity= this.serverEntity.velocity.map((v) => v * 0.9) as [number, number, number];
+    SendUpdate('send-game-update', this.serverEntity)
   }
   accelerate() {
-      this.position[2] += 1;
+    this.serverEntity.velocity[2] += 0.1;
+    SendUpdate('send-game-update', this.serverEntity)
+    
   }
 
   onServerUpdate() {

@@ -21,7 +21,7 @@ class CarGame implements Game {
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
 
-  constructor(private readonly gameInstance: GameInstance) {
+  constructor(public readonly gameInstance: GameInstance) {
     gameInstance.onPlayerUpdated = (player) => {
       const car = this.playerIdToCarMap.get(player.playerId);
       if (!car) {
@@ -39,8 +39,6 @@ class CarGame implements Game {
         this.objects.push(car);
 
         if (e.playerId === this.myId) {
-          console.log('My car!')
-          console.log(car)
           this.myCar = car;
           this.inputHandler.car = car;
         }
@@ -73,14 +71,6 @@ class CarGame implements Game {
     for (const obj of this.objects) {
       obj.render(ctx);
     }
-    this.sendUpdate();
-  }
-  sendUpdate() {
-    const socket = get(clientSocket);
-    if (!socket || !this.myCar) {
-      return;
-    }
-    socket.socket.emit('send-game-update', this.myCar);
   }
 }
 
