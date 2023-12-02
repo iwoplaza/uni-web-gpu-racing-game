@@ -77,10 +77,10 @@ class CarGame implements Game {
   }
   sendUpdate() {
     const socket = get(clientSocket);
-    if (!socket) {
+    if (!socket || !this.myCar) {
       return;
     }
-    socket.socket.emit('game-update', this.gameInstance.world.entities.filter((e) => e.playerId === this.myId));
+    socket.socket.emit('send-game-update', this.myCar);
   }
 }
 
