@@ -4,8 +4,9 @@ import io, { Socket } from 'socket.io-client';
 import type GameInstance from './common/gameInstance';
 import type { Entity } from './common/systems';
 import { carGame } from './carGame';
+import { get, writable, type Writable } from 'svelte/store';
 
-class ClientSocket {
+export class ClientSocket {
   socket: Socket;
 
   constructor(private gameInstance: GameInstance, endpoint?: string) {
@@ -54,20 +55,18 @@ class ClientSocket {
   }
 }
 
-export let clientSocket: ClientSocket | null = null;
-
+export const clientSocket: Writable<ClientSocket | null> = writable(null);
 export async function connect(gameInstance: GameInstance, endpoint?: string) {
   // Disconnecting previous socket
   disconnect();
-
-  clientSocket = new ClientSocket(gameInstance, endpoint);
+  clientSocket.set(new ClientSocket(gameInstance, endpoint));
 }
 
 export function disconnect() {
-  if (!clientSocket) {
+  const socket = get(clientSocket);
+  if (!socket) {
     return;
   }
-
-  clientSocket.dispose();
-  clientSocket = null;
+  socket.dispose();
+  clientSocket.set(null);
 }
