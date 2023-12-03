@@ -5,10 +5,12 @@ class CameraSettings {
   public origin: [number, number, number] = [0, 4, 0];
   public distance: number = 9;
 
-  public gpuBuffer: GPUBuffer;
+  private _gpuBuffer: GPUBuffer | undefined = undefined;
 
-  constructor(private readonly device: GPUDevice) {
-    this.gpuBuffer = device.createBuffer({
+  constructor() {}
+
+  init(device: GPUDevice) {
+    this._gpuBuffer = device.createBuffer({
       size: 16 * 4, // mat4x4<f32>,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
@@ -47,10 +49,18 @@ class CameraSettings {
     return worldMatrix;
   }
 
-  queueWrite(): void {
+  get gpuBuffer(): GPUBuffer {
+    if (!this._gpuBuffer) {
+      throw new Error(`Camera Setting have not been initialized`);
+    }
+
+    return this._gpuBuffer;
+  }
+
+  queueWrite(device: GPUDevice): void {
     const viewMatrix = this.viewMatrix as Float32Array;
 
-    this.device.queue.writeBuffer(
+    device.queue.writeBuffer(
       this.gpuBuffer, // dest
       0, // dest offset
       viewMatrix.buffer, // src

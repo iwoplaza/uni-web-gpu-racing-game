@@ -3,6 +3,13 @@ struct Material {
   emissive: bool,
 }
 
+struct EnvContext {
+  pos: vec3f,
+  normal: vec3f,
+  attenuation: f32,
+  ao: f32,
+}
+
 struct MarchResult {
   steps: u32,
   position: vec3f,
@@ -18,9 +25,9 @@ const BLOCK_SIZE = {{BLOCK_SIZE}};
 const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
-const MAX_STEPS = 1000;
+const MAX_STEPS = 400;
 const SURFACE_DIST = 0.00001;
-const SUPER_SAMPLES = 4;
+const SUPER_SAMPLES = 2;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
 const FAR = 100.;
 
@@ -47,6 +54,7 @@ struct SceneShape {
 
 const MATERIAL_CAR_WHEEL = 0;
 const MATERIAL_CAR_BODY = 1;
+const MATERIAL_GROUND = 2;
 const MATERIAL_NORMAL_TEST = 100;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
@@ -127,6 +135,14 @@ fn sdf_box(p: vec3f, b: vec3f) -> f32 {
   return length(max(q, vec3f(0., 0., 0.))) + min(max(q.x, max(q.y, q.z)), 0.0);
 }
 
+const SUN_DIR = normalize(vec3f(-0.5, 1., -0.2));
+const SUN_COLOR = vec3f(1., 0.95, 0.8);
+const AMBIENT_COLOR = vec3f(0.19, 0.2, 0.23);
+
+fn mat_lambert(ctx: ptr<function, EnvContext>, albedo: vec3f, out: ptr<function, Material>) {
+  (*out).color = (AMBIENT_COLOR + albedo * SUN_COLOR * (*ctx).attenuation) * (*ctx).ao;
+}
+
 fn sdf_wheel(pos: vec3f) -> f32 {
   let pos2 = op_revolve_x(pos, 0.5);
 
@@ -161,6 +177,14 @@ fn sdf_car_body(pos: vec3f) -> f32 {
   );
 }
 
+fn sdf_ground_plane(pos: vec3f) -> f32 {
+  return pos.y;
+}
+
+fn mat_ground_plane(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) {
+  mat_lambert(ctx, pat_checkerboard((*ctx).pos.xz, 0.2f) * vec3f(0.3, 0.6, 0.3), out);
+}
+
 fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
   let t_pos = scene_shapes[idx].transform * vec4f(pos, 1.0);
@@ -180,29 +204,24 @@ fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
 
 fn sdf_world(pos: vec3f) -> f32 {
   var min_dist = FAR;
-  var inf_limit = MAX_INSTANCES;
 
-  for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
-    let obj_dist = sdf_scene_shape(pos, idx);
-    if (obj_dist < min_dist) {
-      min_dist = obj_dist;
-    }
+  min_dist = min(sdf_ground_plane(pos), min_dist);
 
-    inf_limit -= 1;
-    if (inf_limit <= 0) {
-      // TOO MANY ITERATIONS
-      break;
-    }
+  for (var idx = 0u; idx < min(u32(scene_info.num_of_shapes), MAX_INSTANCES); idx++) {
+    min_dist = min(sdf_scene_shape(pos, idx), min_dist);
   }
 
   return min_dist;
 }
 
+fn pat_checkerboard(dir: vec2f, scale: f32) -> f32 {
+  let uv = floor(scale * dir);
+  return 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
+}
+
 fn sky_color(dir: vec3f) -> vec3f {
   let t = dir.y / 2. + 0.5;
-  
-  let uv = floor(30.0 * dir.xy);
-  let c = 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
+  let c = pat_checkerboard(dir.xy, 30.);
 
   return mix(
     vec3f(0.1, 0.15, 0.5),
@@ -211,50 +230,41 @@ fn sky_color(dir: vec3f) -> vec3f {
   ) * mix(1., 0., c);
 }
 
-const SUN_DIR = normalize(vec3f(-0.5, 1., -0.2));
-const SUN_COLOR = vec3f(1., 0.95, 0.8);
-const AMBIENT_COLOR = vec3f(0.19, 0.2, 0.23);
-
-fn material_world(pos: vec3f, normal: vec3f, attenuation: f32, ao: f32, out: ptr<function, Material>) {
+fn material_world(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) {
   (*out).emissive = false;
   (*out).color = vec3f(0., 0., 0.);
 
   var mat_idx = -1;
   var min_dist = FAR;
-  var inf_limit = MAX_INSTANCES;
 
-  for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
-    let obj_dist = sdf_scene_shape(pos, idx);
+  {
+    let obj_dist = sdf_ground_plane((*ctx).pos);
+    if (obj_dist < min_dist) {
+      min_dist = obj_dist;
+      mat_idx = MATERIAL_GROUND;
+    }
+  }
+
+  for (var idx = 0u; idx < min(u32(scene_info.num_of_shapes), MAX_INSTANCES); idx++) {
+    let obj_dist = sdf_scene_shape((*ctx).pos, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
       mat_idx = i32(scene_shapes[idx].material_idx);
-    }
-
-    inf_limit -= 1;
-    if (inf_limit <= 0) {
-      // TOO MANY ITERATIONS
-      break;
     }
   }
 
   if (mat_idx != -1) { // not sky
     if (mat_idx == MATERIAL_CAR_WHEEL) {
-      // TIRE
-      // (*out).emissive = false;
-      // (*out).color = (AMBIENT_COLOR + vec3f(0.2, 0.2, 0.2) * SUN_COLOR * attenuation) * ao;
-      (*out).color = vec3f(1, 1, 1) * attenuation;
+      mat_lambert(ctx, vec3f(0.2, 0.2, 0.2), out);
     }
     else if (mat_idx == MATERIAL_CAR_BODY) {
-      (*out).emissive = false;
-      (*out).color = vec3f(0.5, 0.7, 1);
+      mat_lambert(ctx, vec3f(0.8, 0.5, 0.2), out);
     }
-    else if (mat_idx == 2) {
-      (*out).emissive = true;
-      (*out).color = vec3f(0.5, 1, 0.7) * 10;
+    else if (mat_idx == MATERIAL_GROUND) {
+      mat_ground_plane(ctx, out);
     }
     else if (mat_idx == MATERIAL_NORMAL_TEST) {
-      (*out).emissive = false;
-      (*out).color = vec3f(normal.x + 0.5, normal.y + 0.5, normal.z + 0.5);
+      (*out).color = vec3f((*ctx).normal.x + 0.5, (*ctx).normal.y + 0.5, (*ctx).normal.z + 0.5);
     }
   }
 }
@@ -390,8 +400,13 @@ fn main_frag(
 
         var attenuation = select(0., max(0., dot(normal, SUN_DIR)), sun_march_result.steps > MAX_STEPS);
         // var attenuation = f32(sun_march_result.steps / 100);
-        
-        material_world(march_result.position, normal, attenuation, ao, &material);
+
+        var env_ctx: EnvContext;
+        env_ctx.pos = march_result.position;
+        env_ctx.normal = normal;
+        env_ctx.attenuation = attenuation;
+        env_ctx.ao = ao;
+        material_world(&env_ctx, &material);
       }
 
       acc += material.color;

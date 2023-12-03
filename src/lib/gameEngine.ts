@@ -4,6 +4,7 @@ import SceneInfo from './graphics/sceneInfo';
 
 export interface Game {
   init(sceneInfo: SceneInfo): void;
+  dispose(sceneInfo: SceneInfo): void;
 
   onRender(ctx: GameEngineCtx): void;
 }
@@ -23,62 +24,53 @@ class GameEngineCtxImpl implements GameEngineCtx {
   }
 }
 
-type GameEngineOptions = {
-  device: GPUDevice;
-  canvasContext: GPUCanvasContext;
-  canvasSize: [number, number];
-  presentationFormat: GPUTextureFormat;
-};
+export enum GameEngineInitState {
+  NOT_INITIALIZED,
+  STARTING,
+  READY,
+  DISPOSED
+}
 
 class GameEngine {
-  private readonly device: GPUDevice;
-  private readonly renderer: SceneRenderer;
+  private initState: GameEngineInitState = GameEngineInitState.NOT_INITIALIZED;
+  private renderer: SceneRenderer | undefined = undefined;
 
   private ctx: GameEngineCtxImpl;
   private sceneInfo: SceneInfo;
 
-  private stopAnimationLoop: () => void;
+  private stopAnimationLoop?: () => void;
 
-  constructor(
-    { device, canvasContext, canvasSize, presentationFormat }: GameEngineOptions,
-    private readonly game: Game
-  ) {
-    this.device = device;
-
-    this.sceneInfo = new SceneInfo(device);
+  constructor(private readonly game: Game) {
+    this.sceneInfo = new SceneInfo();
     this.ctx = new GameEngineCtxImpl(this.sceneInfo);
-    this.renderer = new SceneRenderer(
-      device,
-      canvasContext,
-      canvasSize,
-      presentationFormat,
-      this.sceneInfo
-    );
-
-    this.game.init(this.sceneInfo);
-
-    const animationLoop = () => {
-      animationFrameHandle = requestAnimationFrame(animationLoop);
-      this.renderFrame();
-    };
-    let animationFrameHandle = requestAnimationFrame(animationLoop);
-    this.stopAnimationLoop = () => cancelAnimationFrame(animationFrameHandle);
   }
 
-  static async initFromCanvas(canvas: HTMLCanvasElement, game: Game) {
+  async start(canvas: HTMLCanvasElement) {
+    if (this.initState !== GameEngineInitState.NOT_INITIALIZED) {
+      // Already processing
+      return;
+    }
+
+    this.initState = GameEngineInitState.STARTING;
+
     // Initializing WebGPU
     const adapter = await navigator.gpu.requestAdapter();
 
     if (!adapter) {
+      this.initState = GameEngineInitState.NOT_INITIALIZED;
       throw new Error(`Null GPU adapter`);
     }
 
     const device = await adapter.requestDevice();
 
+    if ((this.initState as GameEngineInitState) === GameEngineInitState.DISPOSED) {
+      // Already disposed
+      return;
+    }
+
     // Computing canvas properties
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * devicePixelRatio;
-    canvas.height = canvas.clientHeight * devicePixelRatio;
+    canvas.width = 512;
+    canvas.height = 512;
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
     // Configuring canvas
@@ -89,32 +81,43 @@ class GameEngine {
       alphaMode: 'premultiplied'
     });
 
-    return new GameEngine(
-      {
-        device,
-        canvasContext: canvasCtx,
-        canvasSize: [canvas.width, canvas.height],
-        presentationFormat
-      },
-      game
+    this.sceneInfo.init(device);
+
+    this.renderer = new SceneRenderer(
+      device,
+      canvasCtx,
+      [canvas.width, canvas.height],
+      presentationFormat,
+      this.sceneInfo
     );
+
+    const animationLoop = () => {
+      animationFrameHandle = requestAnimationFrame(animationLoop);
+      this.renderFrame(device);
+    };
+    let animationFrameHandle = requestAnimationFrame(animationLoop);
+    this.stopAnimationLoop = () => cancelAnimationFrame(animationFrameHandle);
+
+    this.initState = GameEngineInitState.READY;
+
+    this.game.init(this.sceneInfo);
   }
 
   dispose() {
+    this.initState = GameEngineInitState.DISPOSED;
     // Dispose of resources here
-    this.stopAnimationLoop();
+    this.stopAnimationLoop?.();
+    this.game.dispose(this.sceneInfo);
   }
 
-  renderFrame() {
+  renderFrame(device: GPUDevice) {
     this.ctx.tickRender();
 
     this.game.onRender(this.ctx);
 
-    const commandEncoder = this.device.createCommandEncoder();
-
-    this.renderer.render(commandEncoder);
-
-    this.device.queue.submit([commandEncoder.finish()]);
+    const commandEncoder = device.createCommandEncoder();
+    this.renderer?.render(commandEncoder);
+    device.queue.submit([commandEncoder.finish()]);
   }
 }
 

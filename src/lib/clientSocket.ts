@@ -1,16 +1,16 @@
 import type { With } from 'miniplex';
+import { writable } from 'svelte/store';
 import io, { Socket } from 'socket.io-client';
 
 import type GameInstance from './common/gameInstance';
 import type { Entity } from './common/systems';
 import { carGame } from './carGame';
-import { get, writable, type Writable } from 'svelte/store';
 
 export class ClientSocket {
   socket: Socket;
 
   constructor(private gameInstance: GameInstance, endpoint?: string) {
-    this.socket = endpoint && endpoint!=="localhost" ? io(endpoint) : io();
+    this.socket = endpoint && endpoint !== 'localhost' ? io(endpoint) : io();
 
     this.socket.on('connect', () => {
       console.log(`Connected to server`);
@@ -63,18 +63,32 @@ export class ClientSocket {
   }
 }
 
-export const clientSocket: Writable<ClientSocket | null> = writable(null);
-export async function connect(gameInstance: GameInstance, endpoint?: string) {
-  // Disconnecting previous socket
-  disconnect();
-  clientSocket.set(new ClientSocket(gameInstance, endpoint));
+function getStorage() {
+  if (typeof window !== 'undefined' && 'localStorage' in window) {
+    return localStorage;
+  }
+
+  return undefined;
 }
 
-export function disconnect() {
-  const socket = get(clientSocket);
-  if (!socket) {
-    return;
-  }
-  socket.dispose();
-  clientSocket.set(null);
-}
+export const serverAddress = (() => {
+  let latestValue = getStorage()?.getItem('server-address') ?? null;
+
+  const { subscribe, set } = writable<string | null>(latestValue);
+
+  return {
+    subscribe,
+    get() {
+      return latestValue;
+    },
+    set(value: string | null) {
+      latestValue = value;
+      if (value !== null) {
+        getStorage()?.setItem('server-address', value);
+      } else {
+        getStorage()?.removeItem('server-address');
+      }
+      set(value);
+    }
+  };
+})();

@@ -23,7 +23,7 @@ export class CarBodyShape implements Shape {
 
     return {
       kind: ShapeKind.CAR_BODY,
-      materialIdx: 100,
+      materialIdx: 1,
       extra1: 0,
       extra2: 0,
       transform: [...transform.values()]
