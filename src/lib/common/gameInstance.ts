@@ -19,7 +19,7 @@ class GameInstance {
     const playerEntity: Entity = {
       playerId,
       position: [0, 0, 0],
-      velocity: [0, 0, 0.5]
+      velocity: [0, 0, 0]
     };
 
     console.log(`New player: ${playerId}`);

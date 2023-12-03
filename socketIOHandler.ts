@@ -24,6 +24,10 @@ export default function injectSocketIO(server: http.Server) {
     socket.on('disconnect', () => {
       gameInstance.removePlayer(socket.id);
     });
+    socket.on('send-game-update', (playerEntity) => {
+      console.log({ id: socket.id  ,velcity: playerEntity.velocity})
+      gameInstance.updatePlayer(playerEntity);
+    });
 
     io.emit('player-connected', playerEntity);
   });

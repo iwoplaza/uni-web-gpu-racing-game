@@ -3,23 +3,14 @@
 
   import { createCarGame } from '$lib/carGame';
   import GameEngine from '$lib/gameEngine';
-  import { connect, disconnect } from '$lib/clientSocket';
+  import { clientSocket, connect, disconnect } from '$lib/clientSocket';
   import GameInstance from '$lib/common/gameInstance';
+    import { connnectToGame } from '$lib/utils/connectToGame';
 
   let canvas!: HTMLCanvasElement;
-
+  let adress: string = "localhost";
   onMount(() => {
-    const gameEnginePromise = (async () => {
-      const gameInstance = new GameInstance();
-      const socketId = connect(gameInstance);
-      const carGame = createCarGame(gameInstance);
 
-      return GameEngine.initFromCanvas(canvas, carGame);
-    })();
-    return () => {
-      gameEnginePromise.then((e) => e.dispose());
-      disconnect();
-    };
   });
 </script>
 
@@ -29,7 +20,27 @@
 </svelte:head>
 
 <section>
+  
   <canvas bind:this={canvas} width={256} height={256} />
+  {#if $clientSocket}
+  <button on:click={()=>
+    {
+      disconnect();
+    }}>Disconnect</button>
+    {:else}
+    <div>
+      <p>Server adress</p>
+      <input bind:value={adress} type="text" placeholder="localhost"/>
+      <button on:click={()=>
+        {
+          connnectToGame(canvas, adress)
+        }}>Connect</button>
+    </div>
+
+    {/if}
+  
+
+  
 </section>
 
 <style>

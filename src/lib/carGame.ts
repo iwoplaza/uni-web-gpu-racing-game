@@ -3,6 +3,7 @@ import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import type GameInstance from './common/gameInstance';
 import type { GameEngineCtx } from './gameEngineCtx';
+import { InputHandler } from './inputHandler';
 
 export let carGame: CarGame | null = null;
 
@@ -16,8 +17,9 @@ class CarGame implements Game {
   private playerIdToCarMap = new Map<string, CarObject>();
   private myCar: CarObject | undefined;
   private objects: GameObject[] = [];
+  private readonly inputHandler: InputHandler;
 
-  constructor(private readonly gameInstance: GameInstance) {
+  constructor(public readonly gameInstance: GameInstance) {
     gameInstance.onPlayerUpdated = (player) => {
       const car = this.playerIdToCarMap.get(player.playerId);
       if (!car) {
@@ -36,6 +38,7 @@ class CarGame implements Game {
 
         if (e.playerId === this.myId) {
           this.myCar = car;
+          this.inputHandler.car = car;
         }
       }
     });
@@ -50,13 +53,14 @@ class CarGame implements Game {
 
         if (e.playerId === this.myId) {
           this.myCar = undefined;
+          this.inputHandler.car = null;
         }
       }
     });
+    this.inputHandler = new InputHandler();
   }
 
   init(): void {}
-
   onRender(ctx: GameEngineCtx) {
     if (this.myCar) {
       ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix;

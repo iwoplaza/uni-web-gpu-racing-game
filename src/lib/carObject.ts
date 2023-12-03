@@ -6,8 +6,11 @@ import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
 import type { Entity } from './common/systems';
 import { mat4, vec3 } from 'wgpu-matrix';
+import { carGame } from './carGame';
+import { sendUpdate } from './utils/sendUpdate';
 
 class CarObject implements GameObject {
+  
   position: [number, number, number];
   velocity: [number, number, number];
   yawAngle: number;
@@ -47,6 +50,25 @@ class CarObject implements GameObject {
 
     return worldMatrix;
   }
+  turnRight() {
+    const angle = this.wheels[0].turnAngle;
+    this.wheels[0].turnAngle = angle + 0.1;
+    this.wheels[1].turnAngle = angle + 0.1;
+  }
+  turnLeft() {
+    const angle = this.wheels[0].turnAngle;
+    this.wheels[0].turnAngle = angle - 0.1;
+    this.wheels[1].turnAngle = angle - 0.1;
+  }
+  brake() {
+    vec3.scale(this.serverEntity.velocity, 0.9, this.serverEntity.velocity);
+    sendUpdate('send-game-update', this.serverEntity)
+  }
+  accelerate() {
+    this.serverEntity.velocity[2] += 0.1;
+    sendUpdate('send-game-update', this.serverEntity)
+    
+  }
 
   onServerUpdate() {
     this.position = [...this.serverEntity.position];
@@ -62,9 +84,9 @@ class CarObject implements GameObject {
 
   render(ctx: GameEngineCtx) {
     const worldMatrix = this.worldMatrix;
+    // this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
+    // this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
 
-    this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
-    this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
     this.wheels[2].turnAngle = 0;
     this.wheels[3].turnAngle = Math.PI;
 
