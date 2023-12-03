@@ -1,10 +1,13 @@
 import type { With } from 'miniplex';
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import io, { Socket } from 'socket.io-client';
 
 import type GameInstance from './common/gameInstance';
 import type { Entity } from './common/systems';
 import { carGame } from './carGame';
+export const latency = writable(0);
+export const jitter = writable(0);
+export const speedCheat = writable(0);
 
 export class ClientSocket {
   socket: Socket;
@@ -29,7 +32,12 @@ export class ClientSocket {
     });
 
     this.socket.on('player-connected', (entity: Entity) => {
-      this.gameInstance.world.add(entity);
+      const jit = get(jitter);
+      const lat = get(latency);
+      const delay = lat + Math.random() * jit;
+      setTimeout(() => {
+        this.gameInstance.world.add(entity);
+      }, delay);
     });
 
     this.socket.on('player-left', (playerId: string) => {
@@ -48,13 +56,18 @@ export class ClientSocket {
       // console.log('Received game update');
 
       // Updating all players
-      for (const entity of entities) {
-        if (!entity.playerId) {
-          continue;
-        }
+      const jit = get(jitter);
+      const lat = get(latency);
+      const delay = lat + Math.random() * jit;
+      setTimeout(() => {
+        for (const entity of entities) {
+          if (!entity.playerId) {
+            continue;
+          }
 
-        this.gameInstance.updatePlayer(entity as With<Entity, 'playerId'>);
-      }
+          this.gameInstance.updatePlayer(entity as With<Entity, 'playerId'>);
+        }
+      }, delay);
     });
   }
 
