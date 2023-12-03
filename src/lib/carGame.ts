@@ -48,7 +48,7 @@ class CarGame implements Game {
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
   private readonly gameInstance = new GameInstance();
-  private readonly clientSocket;
+  public readonly clientSocket;
 
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
