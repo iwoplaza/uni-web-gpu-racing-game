@@ -7,7 +7,7 @@ import { CarBodyShape } from './graphics/carBodyShape';
 import type { Entity } from './common/systems';
 import { mat4, vec3 } from 'wgpu-matrix';
 import { carGame } from './carGame';
-import { SendUpdate } from './utils/sendUpdate';
+import { sendUpdate } from './utils/sendUpdate';
 
 class CarObject implements GameObject {
   
@@ -62,11 +62,11 @@ class CarObject implements GameObject {
   }
   brake() {
     vec3.scale(this.serverEntity.velocity, 0.9, this.serverEntity.velocity);
-    SendUpdate('send-game-update', this.serverEntity)
+    sendUpdate('send-game-update', this.serverEntity)
   }
   accelerate() {
     this.serverEntity.velocity[2] += 0.1;
-    SendUpdate('send-game-update', this.serverEntity)
+    sendUpdate('send-game-update', this.serverEntity)
     
   }
 
