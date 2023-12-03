@@ -18,8 +18,7 @@ export function createCarGame(canvas: HTMLCanvasElement) {
     return;
   }
 
-  const gameInstance = new GameInstance();
-  carGame = new CarGame(gameInstance, new ClientSocket(gameInstance, endpoint));
+  carGame = new CarGame(endpoint);
   gameEngine = new GameEngine(carGame);
   gameEngine.start(canvas);
 }
@@ -48,12 +47,12 @@ class CarGame implements Game {
   private myCar: CarObject | undefined;
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
+  private readonly gameInstance = new GameInstance();
+  private readonly clientSocket;
 
-  constructor(
-    public readonly gameInstance: GameInstance,
-    public readonly clientSocket: ClientSocket
-  ) {
+  constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
+    this.clientSocket = new ClientSocket(this.gameInstance, endpoint);
   }
 
   init(sceneInfo: SceneInfo): void {
@@ -95,6 +94,8 @@ class CarGame implements Game {
         }
       }
     });
+
+    this.clientSocket.connect();
   }
 
   dispose() {
