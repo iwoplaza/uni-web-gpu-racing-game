@@ -34,13 +34,13 @@ class CarObject implements GameObject {
     this.yawAngle = 0;
 
     this.wheels = [
-      new CarWheelShape([-2.2, 0, 3.5]), // front-left
-      new CarWheelShape([2.2, 0, 3.5]), // front-right
-      new CarWheelShape([-2.2, 0, -3.5]), // back-left
-      new CarWheelShape([2.2, 0, -3.5]) // back-right
+      new CarWheelShape([-2.2, 1, 3.5]), // front-left
+      new CarWheelShape([2.2, 1, 3.5]), // front-right
+      new CarWheelShape([-2.2, 1, -3.5]), // back-left
+      new CarWheelShape([2.2, 1, -3.5]) // back-right
     ];
 
-    this.body = new CarBodyShape([0, 0, 0]);
+    this.body = new CarBodyShape([0, 1, 0]);
   }
 
   dispose(sceneInfo: SceneInfo) {

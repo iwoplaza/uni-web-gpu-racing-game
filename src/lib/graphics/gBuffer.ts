@@ -27,14 +27,14 @@ function createGBufferSlot(
 class GBuffer {
   slots: GBufferSlot[] = [];
   rawRender: GBufferSlot; // a render before any post-processing
-  aux: GBufferSlot;
 
   constructor(device: GPUDevice, private _size: [number, number]) {
     this.slots.push(
       (this.rawRender = createGBufferSlot(
         device,
         {
-          size: this.size,
+          // size: [this.size[0] / 2, this.size[1] / 2],
+          size: _size,
           usage:
             GPUTextureUsage.RENDER_ATTACHMENT |
             GPUTextureUsage.TEXTURE_BINDING |
@@ -48,28 +48,6 @@ class GBuffer {
           g: 0, // color.g
           b: 0, // color.b
           a: 0 // material_type
-        }
-      ))
-    );
-
-    this.slots.push(
-      (this.aux = createGBufferSlot(
-        device,
-        {
-          size: _size,
-          usage:
-            GPUTextureUsage.RENDER_ATTACHMENT |
-            GPUTextureUsage.TEXTURE_BINDING |
-            GPUTextureUsage.STORAGE_BINDING,
-          // normal.xyz, padding
-          format: 'rgba16float'
-        },
-        // clear value
-        {
-          r: 0, // normal.x
-          g: 0, // normal.y
-          b: 0, // normal.z
-          a: 0 // padding
         }
       ))
     );
