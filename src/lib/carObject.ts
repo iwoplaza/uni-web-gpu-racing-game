@@ -61,7 +61,7 @@ class CarObject implements GameObject {
     this.wheels[1].turnAngle = angle - 0.1;
   }
   brake() {
-    this.serverEntity.velocity= this.serverEntity.velocity.map((v) => v * 0.9) as [number, number, number];
+    vec3.scale(this.serverEntity.velocity, 0.9, this.serverEntity.velocity);
     SendUpdate('send-game-update', this.serverEntity)
   }
   accelerate() {
