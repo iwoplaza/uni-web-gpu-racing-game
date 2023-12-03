@@ -10,7 +10,12 @@ export class ClientSocket {
   socket: Socket;
 
   constructor(private gameInstance: GameInstance, endpoint?: string) {
-    this.socket = endpoint && endpoint !== 'localhost' ? io(endpoint) : io();
+    const socketOptions = {
+      autoConnect: false
+    };
+
+    this.socket =
+      endpoint && endpoint !== 'localhost' ? io(endpoint, socketOptions) : io(socketOptions);
 
     this.socket.on('connect', () => {
       console.log(`Connected to server`);
@@ -60,6 +65,10 @@ export class ClientSocket {
 
   dispose() {
     this.socket.disconnect();
+  }
+
+  connect() {
+    this.socket.connect();
   }
 }
 
