@@ -47,6 +47,7 @@ struct SceneShape {
 
 const MATERIAL_CAR_WHEEL = 0;
 const MATERIAL_CAR_BODY = 1;
+const MATERIAL_GROUND = 2;
 const MATERIAL_NORMAL_TEST = 100;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
@@ -198,11 +199,14 @@ fn sdf_world(pos: vec3f) -> f32 {
   return min_dist;
 }
 
+fn pat_checkerboard(dir: vec2f, scale: f32) -> f32 {
+  let uv = floor(scale * dir);
+  return 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
+}
+
 fn sky_color(dir: vec3f) -> vec3f {
   let t = dir.y / 2. + 0.5;
-  
-  let uv = floor(30.0 * dir.xy);
-  let c = 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
+  let c = pat_checkerboard(dir.xy, 30.);
 
   return mix(
     vec3f(0.1, 0.15, 0.5),
@@ -239,21 +243,15 @@ fn material_world(pos: vec3f, normal: vec3f, attenuation: f32, ao: f32, out: ptr
 
   if (mat_idx != -1) { // not sky
     if (mat_idx == MATERIAL_CAR_WHEEL) {
-      // TIRE
-      // (*out).emissive = false;
-      // (*out).color = (AMBIENT_COLOR + vec3f(0.2, 0.2, 0.2) * SUN_COLOR * attenuation) * ao;
-      (*out).color = vec3f(1, 1, 1) * attenuation;
+      (*out).color = (AMBIENT_COLOR + vec3f(1, 1, 1) * SUN_COLOR * attenuation) * ao;
     }
     else if (mat_idx == MATERIAL_CAR_BODY) {
-      (*out).emissive = false;
       (*out).color = vec3f(0.5, 0.7, 1);
     }
-    else if (mat_idx == 2) {
-      (*out).emissive = true;
-      (*out).color = vec3f(0.5, 1, 0.7) * 10;
+    else if (mat_idx == MATERIAL_GROUND) {
+      (*out).color = vec3f(1, 0, 0);
     }
     else if (mat_idx == MATERIAL_NORMAL_TEST) {
-      (*out).emissive = false;
       (*out).color = vec3f(normal.x + 0.5, normal.y + 0.5, normal.z + 0.5);
     }
   }

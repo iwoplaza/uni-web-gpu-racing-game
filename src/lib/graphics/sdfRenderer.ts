@@ -161,7 +161,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   return {
     perform(commandEncoder: GPUCommandEncoder) {
       timeInfoBuffer.update();
-      sceneInfo.camera.queueWrite();
+      sceneInfo.camera.queueWrite(device);
 
       const mainPass = commandEncoder.beginComputePass();
 

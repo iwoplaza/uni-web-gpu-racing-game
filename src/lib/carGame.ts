@@ -1,16 +1,45 @@
 import CarObject from './carObject';
 import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
-import type GameInstance from './common/gameInstance';
+import GameInstance from './common/gameInstance';
 import type { GameEngineCtx } from './gameEngineCtx';
 import type SceneInfo from './graphics/sceneInfo';
 import { InputHandler } from './inputHandler';
+import { ClientSocket, serverAddress } from './clientSocket';
+import GameEngine from './gameEngine';
 
-export let carGame: CarGame | null = null;
+let gameEngine: GameEngine | undefined = undefined;
+export let carGame: CarGame | undefined = undefined;
 
-export function createCarGame(gameInstance: GameInstance) {
-  carGame = new CarGame(gameInstance);
-  return carGame;
+export function createCarGame(canvas: HTMLCanvasElement) {
+  const endpoint = serverAddress.get();
+
+  if (!endpoint) {
+    return;
+  }
+
+  const gameInstance = new GameInstance();
+  carGame = new CarGame(gameInstance, new ClientSocket(gameInstance, endpoint));
+  gameEngine = new GameEngine(carGame);
+  gameEngine.start(canvas);
+}
+
+export function disposeCarGame() {
+  gameEngine?.dispose();
+  gameEngine = undefined;
+  carGame = undefined;
+}
+
+export function connect(canvas: HTMLCanvasElement, endpoint: string) {
+  serverAddress.set(endpoint);
+
+  createCarGame(canvas);
+}
+
+export function disconnect() {
+  serverAddress.set(null);
+
+  disposeCarGame();
 }
 
 class CarGame implements Game {
@@ -20,7 +49,10 @@ class CarGame implements Game {
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
 
-  constructor(public readonly gameInstance: GameInstance) {
+  constructor(
+    public readonly gameInstance: GameInstance,
+    public readonly clientSocket: ClientSocket
+  ) {
     this.inputHandler = new InputHandler();
   }
 
@@ -63,6 +95,10 @@ class CarGame implements Game {
         }
       }
     });
+  }
+
+  dispose() {
+    this.clientSocket.dispose();
   }
 
   onRender(ctx: GameEngineCtx) {

@@ -1,3 +1,4 @@
+import { mat4 } from 'wgpu-matrix';
 import { type Parsed, BufferWriter, MaxValue } from 'typed-binary';
 
 import { roundUp } from '$lib/mathUtils';
@@ -33,6 +34,7 @@ export const ShapeStruct = std140.object({
 });
 const ShapeStructSize = ShapeStruct.measure(MaxValue).size;
 
+type ShapesArray = Parsed<typeof ShapesArray>;
 const ShapesArray = std140.arrayOf(ShapeStruct, MaxInstances);
 const ShapesArraySize = ShapesArray.measure(MaxValue).size;
 
@@ -41,9 +43,19 @@ export interface Shape {
 }
 
 class SceneInfo {
+  private _device: GPUDevice | undefined = undefined;
+
   private hostSceneInfo: SceneInfoStruct = {
     numOfShapes: 0
   };
+
+  private hostShapes: ShapesArray = new Array(MaxInstances).fill(null).map(() => ({
+    kind: 0,
+    extra1: 0,
+    extra2: 0,
+    materialIdx: 0,
+    transform: [...mat4.identity().values()]
+  }));
 
   private instanceToIdxMap = new Map<Shape, number>();
   private instancesArray: Shape[] = [];
@@ -60,38 +72,68 @@ class SceneInfo {
    */
   instanceBuffer = new ArrayBuffer(ShapeStructSize);
 
-  gpuSceneInfoBuffer: GPUBuffer;
-  gpuSceneShapesBuffer: GPUBuffer;
+  _gpuSceneInfoBuffer: GPUBuffer | undefined;
+  _gpuSceneShapesBuffer: GPUBuffer | undefined;
 
-  public camera: CameraSettings;
+  public camera = new CameraSettings();
 
-  constructor(private readonly device: GPUDevice) {
-    this.camera = new CameraSettings(device);
+  init(device: GPUDevice) {
+    this._device = device;
 
-    this.gpuSceneInfoBuffer = device.createBuffer({
+    this.camera.init(device);
+
+    this._gpuSceneInfoBuffer = device.createBuffer({
       label: 'Scene Info Buffer',
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
       size: roundUp(SceneInfoStructSize, 16),
       mappedAtCreation: true
     });
     {
-      const writer = new BufferWriter(this.gpuSceneInfoBuffer.getMappedRange());
+      const writer = new BufferWriter(this._gpuSceneInfoBuffer.getMappedRange());
       SceneInfoStruct.write(writer, this.hostSceneInfo);
-      this.gpuSceneInfoBuffer.unmap();
+      this._gpuSceneInfoBuffer.unmap();
     }
 
-    this.gpuSceneShapesBuffer = device.createBuffer({
+    this._gpuSceneShapesBuffer = device.createBuffer({
       label: 'Scene Shapes Buffer',
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE,
-      size: roundUp(ShapesArraySize, 16)
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      size: roundUp(ShapesArraySize, 16),
+      mappedAtCreation: true
     });
+    // Uploading the instances that are already there
+    {
+      const writer = new BufferWriter(this._gpuSceneShapesBuffer.getMappedRange());
+      ShapesArray.write(writer, this.hostShapes);
+      this._gpuSceneShapesBuffer.unmap();
+    }
+  }
+
+  get gpuSceneInfoBuffer() {
+    if (!this._gpuSceneInfoBuffer) {
+      throw new Error(`SceneInfo has to be initialized`);
+    }
+
+    return this._gpuSceneInfoBuffer;
+  }
+
+  get gpuSceneShapesBuffer() {
+    if (!this._gpuSceneShapesBuffer) {
+      throw new Error(`SceneInfo has to be initialized`);
+    }
+
+    return this._gpuSceneShapesBuffer;
   }
 
   private writeSceneInfo() {
     const writer = new BufferWriter(this.sceneInfoBuffer);
     SceneInfoStruct.write(writer, this.hostSceneInfo);
-    this.device.queue.writeBuffer(
-      this.gpuSceneInfoBuffer,
+
+    if (!this._device || !this._gpuSceneInfoBuffer) {
+      return;
+    }
+
+    this._device.queue.writeBuffer(
+      this._gpuSceneInfoBuffer,
       0,
       this.sceneInfoBuffer,
       0,
@@ -102,8 +144,14 @@ class SceneInfo {
   private writeDataToIdx(idx: number, data: ShapeStruct) {
     ShapeStruct.write(new BufferWriter(this.instanceBuffer), data);
 
-    this.device.queue.writeBuffer(
-      this.gpuSceneShapesBuffer, // dest
+    this.hostShapes[idx] = data;
+
+    if (!this._device || !this._gpuSceneShapesBuffer) {
+      return;
+    }
+
+    this._device.queue.writeBuffer(
+      this._gpuSceneShapesBuffer, // dest
       idx * ShapeStructSize, // dest offset
       this.instanceBuffer, // src
       0, // src offset
