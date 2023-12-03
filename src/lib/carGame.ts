@@ -3,6 +3,7 @@ import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import type GameInstance from './common/gameInstance';
 import type { GameEngineCtx } from './gameEngineCtx';
+import type SceneInfo from './graphics/sceneInfo';
 
 export let carGame: CarGame | null = null;
 
@@ -17,8 +18,10 @@ class CarGame implements Game {
   private myCar: CarObject | undefined;
   private objects: GameObject[] = [];
 
-  constructor(private readonly gameInstance: GameInstance) {
-    gameInstance.onPlayerUpdated = (player) => {
+  constructor(private readonly gameInstance: GameInstance) {}
+
+  init(sceneInfo: SceneInfo): void {
+    this.gameInstance.onPlayerUpdated = (player) => {
       const car = this.playerIdToCarMap.get(player.playerId);
       if (!car) {
         return;
@@ -44,6 +47,7 @@ class CarGame implements Game {
       if (e.playerId) {
         console.log(`Player left!: ${e.playerId}`);
         const car = this.playerIdToCarMap.get(e.playerId);
+        car?.dispose(sceneInfo);
 
         this.objects = this.objects.filter((o) => o !== car);
         this.playerIdToCarMap.delete(e.playerId);
@@ -54,8 +58,6 @@ class CarGame implements Game {
       }
     });
   }
-
-  init(): void {}
 
   onRender(ctx: GameEngineCtx) {
     if (this.myCar) {

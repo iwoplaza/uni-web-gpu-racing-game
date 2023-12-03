@@ -1,11 +1,12 @@
 import type { With } from 'miniplex';
+import { mat4, vec3 } from 'wgpu-matrix';
 
 import type { GameEngineCtx } from './gameEngineCtx';
 import type GameObject from './gameObject';
 import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
 import type { Entity } from './common/systems';
-import { mat4, vec3 } from 'wgpu-matrix';
+import type SceneInfo from './graphics/sceneInfo';
 
 class CarObject implements GameObject {
   position: [number, number, number];
@@ -39,6 +40,13 @@ class CarObject implements GameObject {
     ];
 
     this.body = new CarBodyShape([0, 0, 0]);
+  }
+
+  dispose(sceneInfo: SceneInfo) {
+    for (const wheel of this.wheels) {
+      sceneInfo.deleteInstance(wheel);
+    }
+    sceneInfo.deleteInstance(this.body);
   }
 
   get worldMatrix() {

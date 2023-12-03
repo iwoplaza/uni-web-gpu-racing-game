@@ -23,6 +23,8 @@ export default function injectSocketIO(server: http.Server) {
     const playerEntity = gameInstance.addPlayer(socket.id);
     socket.on('disconnect', () => {
       gameInstance.removePlayer(socket.id);
+
+      io.emit('player-left', socket.id);
     });
 
     io.emit('player-connected', playerEntity);

@@ -3,7 +3,7 @@ import type { GameEngineCtx } from './gameEngineCtx';
 import SceneInfo from './graphics/sceneInfo';
 
 export interface Game {
-  init(): void;
+  init(sceneInfo: SceneInfo): void;
 
   onRender(ctx: GameEngineCtx): void;
 }
@@ -55,7 +55,7 @@ class GameEngine {
       this.sceneInfo
     );
 
-    this.game.init();
+    this.game.init(this.sceneInfo);
 
     const animationLoop = () => {
       animationFrameHandle = requestAnimationFrame(animationLoop);

@@ -31,6 +31,14 @@ class ClientSocket {
       this.gameInstance.world.add(entity);
     });
 
+    this.socket.on('player-left', (playerId: string) => {
+      const playerEntity = this.gameInstance.world.where((e) => e.playerId === playerId).first;
+
+      if (playerEntity) {
+        this.gameInstance.world.remove(playerEntity);
+      }
+    });
+
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
     });
