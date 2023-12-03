@@ -5,10 +5,17 @@ import io, { Socket } from 'socket.io-client';
 import type GameInstance from './common/gameInstance';
 import type { Entity } from './common/systems';
 import { carGame } from './carGame';
+import type { Timestamped } from './common/wrapWithTimestamp';
 export const latency = writable(0);
 export const jitter = writable(0);
 export const speedCheat = writable(0);
+export const ping = writable(0);
 
+function updatePing(serverDate: number) {
+  const current = Date.now();
+  const newPing = Math.abs(current - serverDate);
+  ping.set(newPing);
+}
 export class ClientSocket {
   socket: Socket;
 
@@ -27,26 +34,27 @@ export class ClientSocket {
       }
     });
 
-    this.socket.on('initial-state', (entities: Entity[]) => {
+    this.socket.on('initial-state', (update: Timestamped<Entity[]>) => {
       console.log('Got initial state');
 
       this.gameInstance.world.clear();
-      for (const entity of entities) {
+      for (const entity of update.value) {
         this.gameInstance.world.add(entity);
       }
     });
 
-    this.socket.on('player-connected', (entity: Entity) => {
+    this.socket.on('player-connected', (update: Timestamped<Entity>) => {
       const jit = get(jitter);
       const lat = get(latency);
       const delay = lat + Math.random() * jit;
+
       setTimeout(() => {
-        this.gameInstance.world.add(entity);
+        this.gameInstance.world.add(update.value);
       }, delay);
     });
 
-    this.socket.on('player-left', (playerId: string) => {
-      const playerEntity = this.gameInstance.world.where((e) => e.playerId === playerId).first;
+    this.socket.on('player-left', (update: Timestamped<string>) => {
+      const playerEntity = this.gameInstance.world.where((e) => e.playerId === update.value).first;
 
       if (playerEntity) {
         this.gameInstance.world.remove(playerEntity);
@@ -57,7 +65,7 @@ export class ClientSocket {
       console.log(`Disconnected`);
     });
 
-    this.socket.on('game-update', (entities: Entity[]) => {
+    this.socket.on('game-update', (update: Timestamped<Entity[]>) => {
       // console.log('Received game update');
 
       // Updating all players
@@ -65,7 +73,9 @@ export class ClientSocket {
       const lat = get(latency);
       const delay = lat + Math.random() * jit;
       setTimeout(() => {
-        for (const entity of entities) {
+        updatePing(update.timestamp);
+
+        for (const entity of update.value) {
           if (!entity.playerId) {
             continue;
           }
