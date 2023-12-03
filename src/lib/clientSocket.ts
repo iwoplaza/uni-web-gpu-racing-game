@@ -11,11 +11,28 @@ export const jitter = writable(0);
 export const speedCheat = writable(0);
 export const ping = writable(0);
 
-function updatePing(serverDate: number) {
+function updatePing(timestamp: number) {
   const current = Date.now();
-  const newPing = Math.abs(current - serverDate);
+  const newPing = Math.abs(current - timestamp);
   ping.set(newPing);
 }
+
+// eslint-disable-next-line @typescript-eslint/ban-types
+function executeWithDelay(action: Function) {
+  return function (timestampedUpdate: Timestamped<object>) {
+    const jit = get(jitter);
+    const lat = get(latency);
+    const delay = lat + Math.random() * jit;
+    setTimeout(() => {
+      updatePing(timestampedUpdate.timestamp);
+      // TODO data compresssion
+      // action(decompresss(timestampedUpdate.value)
+      //
+      action(timestampedUpdate.value);
+    }, delay);
+  };
+}
+
 export class ClientSocket {
   socket: Socket;
 
@@ -34,56 +51,51 @@ export class ClientSocket {
       }
     });
 
-    this.socket.on('initial-state', (update: Timestamped<Entity[]>) => {
-      console.log('Got initial state');
+    this.socket.on(
+      'initial-state',
+      executeWithDelay((entities: Entity[]) => {
+        console.log('Got initial state');
 
-      this.gameInstance.world.clear();
-      for (const entity of update.value) {
+        this.gameInstance.world.clear();
+        for (const entity of entities) {
+          this.gameInstance.world.add(entity);
+        }
+      })
+    );
+
+    this.socket.on(
+      'player-connected',
+      executeWithDelay((entity: Entity) => {
         this.gameInstance.world.add(entity);
-      }
-    });
+      })
+    );
 
-    this.socket.on('player-connected', (update: Timestamped<Entity>) => {
-      const jit = get(jitter);
-      const lat = get(latency);
-      const delay = lat + Math.random() * jit;
+    this.socket.on(
+      'player-left',
+      executeWithDelay((playerId: string) => {
+        const playerEntity = this.gameInstance.world.where((e) => e.playerId === playerId).first;
 
-      setTimeout(() => {
-        this.gameInstance.world.add(update.value);
-      }, delay);
-    });
-
-    this.socket.on('player-left', (update: Timestamped<string>) => {
-      const playerEntity = this.gameInstance.world.where((e) => e.playerId === update.value).first;
-
-      if (playerEntity) {
-        this.gameInstance.world.remove(playerEntity);
-      }
-    });
+        if (playerEntity) {
+          this.gameInstance.world.remove(playerEntity);
+        }
+      })
+    );
 
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
     });
 
-    this.socket.on('game-update', (update: Timestamped<Entity[]>) => {
-      // console.log('Received game update');
-
-      // Updating all players
-      const jit = get(jitter);
-      const lat = get(latency);
-      const delay = lat + Math.random() * jit;
-      setTimeout(() => {
-        updatePing(update.timestamp);
-
-        for (const entity of update.value) {
+    this.socket.on(
+      'game-update',
+      executeWithDelay((entities: Entity[]) => {
+        for (const entity of entities) {
           if (!entity.playerId) {
             continue;
           }
-
           this.gameInstance.updatePlayer(entity as With<Entity, 'playerId'>);
         }
-      }, delay);
-    });
+      })
+    );
   }
 
   dispose() {
