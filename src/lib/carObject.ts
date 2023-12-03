@@ -1,16 +1,15 @@
 import type { With } from 'miniplex';
+import { mat4, vec3 } from 'wgpu-matrix';
 
 import type { GameEngineCtx } from './gameEngineCtx';
 import type GameObject from './gameObject';
 import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
 import type { Entity } from './common/systems';
-import { mat4, vec3 } from 'wgpu-matrix';
-import { carGame } from './carGame';
+import type SceneInfo from './graphics/sceneInfo';
 import { sendUpdate } from './utils/sendUpdate';
 
 class CarObject implements GameObject {
-  
   position: [number, number, number];
   velocity: [number, number, number];
   yawAngle: number;
@@ -44,6 +43,13 @@ class CarObject implements GameObject {
     this.body = new CarBodyShape([0, 0, 0]);
   }
 
+  dispose(sceneInfo: SceneInfo) {
+    for (const wheel of this.wheels) {
+      sceneInfo.deleteInstance(wheel);
+    }
+    sceneInfo.deleteInstance(this.body);
+  }
+
   get worldMatrix() {
     const worldMatrix = mat4.identity();
     mat4.translate(worldMatrix, vec3.negate(this.position), worldMatrix);
@@ -62,12 +68,11 @@ class CarObject implements GameObject {
   }
   brake() {
     vec3.scale(this.serverEntity.velocity, 0.9, this.serverEntity.velocity);
-    sendUpdate('send-game-update', this.serverEntity)
+    sendUpdate('send-game-update', this.serverEntity);
   }
   accelerate() {
     this.serverEntity.velocity[2] += 0.1;
-    sendUpdate('send-game-update', this.serverEntity)
-    
+    sendUpdate('send-game-update', this.serverEntity);
   }
 
   onServerUpdate() {

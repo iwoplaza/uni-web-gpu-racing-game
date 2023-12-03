@@ -1,13 +1,11 @@
 struct Material {
   color: vec3f,
-  roughness: f32,
   emissive: bool,
 }
 
 struct MarchResult {
+  steps: u32,
   position: vec3f,
-  material: Material,
-  normal: vec3f,
 }
 
 struct SceneInfo {
@@ -23,8 +21,7 @@ const PI2 = 2. * PI;
 const MAX_STEPS = 1000;
 const SURFACE_DIST = 0.00001;
 const SUPER_SAMPLES = 4;
-const SUB_SAMPLES = 1;
-const MAX_REFL = 1u;
+const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
 const FAR = 100.;
 
 {{SHAPE_KIND_DEFINITIONS}}
@@ -48,6 +45,8 @@ struct SceneShape {
 @group(2) @binding(1) var<storage, read> scene_info: SceneInfo;
 @group(2) @binding(2) var<storage, read> scene_shapes: array<SceneShape, MAX_INSTANCES>;
 
+const MATERIAL_CAR_WHEEL = 0;
+const MATERIAL_CAR_BODY = 1;
 const MATERIAL_NORMAL_TEST = 100;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
@@ -181,7 +180,7 @@ fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
 
 fn sdf_world(pos: vec3f) -> f32 {
   var min_dist = FAR;
-  var inf_limit = 100;
+  var inf_limit = MAX_INSTANCES;
 
   for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
     let obj_dist = sdf_scene_shape(pos, idx);
@@ -212,14 +211,17 @@ fn sky_color(dir: vec3f) -> vec3f {
   ) * mix(1., 0., c);
 }
 
-fn material_world(pos: vec3f, normal: vec3f, ao: f32, out: ptr<function, Material>) {
-  // assuming sky, replacing later
-  (*out).emissive = true;
-  (*out).color = sky_color(normalize(pos));
+const SUN_DIR = normalize(vec3f(-0.5, 1., -0.2));
+const SUN_COLOR = vec3f(1., 0.95, 0.8);
+const AMBIENT_COLOR = vec3f(0.19, 0.2, 0.23);
+
+fn material_world(pos: vec3f, normal: vec3f, attenuation: f32, ao: f32, out: ptr<function, Material>) {
+  (*out).emissive = false;
+  (*out).color = vec3f(0., 0., 0.);
 
   var mat_idx = -1;
   var min_dist = FAR;
-  var inf_limit = 100;
+  var inf_limit = MAX_INSTANCES;
 
   for (var idx = 0u; idx < scene_info.num_of_shapes; idx++) {
     let obj_dist = sdf_scene_shape(pos, idx);
@@ -236,15 +238,14 @@ fn material_world(pos: vec3f, normal: vec3f, ao: f32, out: ptr<function, Materia
   }
 
   if (mat_idx != -1) { // not sky
-    if (mat_idx == 0) {
+    if (mat_idx == MATERIAL_CAR_WHEEL) {
       // TIRE
-      (*out).emissive = false;
-      (*out).roughness = 1;
-      (*out).color = vec3f(1, 0.9, 0.8) * ao;
+      // (*out).emissive = false;
+      // (*out).color = (AMBIENT_COLOR + vec3f(0.2, 0.2, 0.2) * SUN_COLOR * attenuation) * ao;
+      (*out).color = vec3f(1, 1, 1) * attenuation;
     }
-    else if (mat_idx == 1) {
+    else if (mat_idx == MATERIAL_CAR_BODY) {
       (*out).emissive = false;
-      (*out).roughness = 0.;
       (*out).color = vec3f(0.5, 0.7, 1);
     }
     else if (mat_idx == 2) {
@@ -253,7 +254,6 @@ fn material_world(pos: vec3f, normal: vec3f, ao: f32, out: ptr<function, Materia
     }
     else if (mat_idx == MATERIAL_NORMAL_TEST) {
       (*out).emissive = false;
-      (*out).roughness = 1.;
       (*out).color = vec3f(normal.x + 0.5, normal.y + 0.5, normal.z + 0.5);
     }
   }
@@ -322,8 +322,7 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
     // march forward safely
     progress += min_dist;
 
-    if (progress > FAR)
-    {
+    if (progress > FAR) {
       // Stop checking.
       break;
     }
@@ -334,24 +333,13 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   (*out).position = pos;
 
   // Not near surface or distance rising?
-  if (min_dist > SURFACE_DIST * 2. || min_dist > prev_dist)
-  {
+  if (min_dist > SURFACE_DIST * 2. || min_dist > prev_dist) {
     // Sky
-    (*out).material.color = sky_color(ray_dir);
-    (*out).material.emissive = true;
-    (*out).normal = -ray_dir;
+    (*out).steps = MAX_STEPS + 1;
     return;
   }
 
-  var material: Material;
-  (*out).normal = world_normals(pos);
-  
-  // approximating ambient occlusion
-  var ao = max(0, f32(step));
-  ao = ao / (1 + ao);
-  ao = 1 - pow(ao, 20);
-  material_world(pos, (*out).normal, ao, &material);
-  (*out).material = material;
+  (*out).steps = step;
 }
 
 @compute @workgroup_size(BLOCK_SIZE, BLOCK_SIZE, 1)
@@ -363,51 +351,54 @@ fn main_frag(
   let parallel_idx = LocalInvocationID.y * BLOCK_SIZE + LocalInvocationID.x;
 
   // var seed = (GlobalInvocationID.x * 17) + GlobalInvocationID.y * (WIDTH) + GlobalInvocationID.z * (WIDTH * HEIGHT) + u32(time * 0.005) * 3931;
-  var seed = (GlobalInvocationID.x + GlobalInvocationID.y * (WIDTH) + GlobalInvocationID.z * (WIDTH * HEIGHT)) * (SUPER_SAMPLES * SUPER_SAMPLES * SUB_SAMPLES * MAX_REFL * 3 + 1 + u32(time));
+  var seed = (GlobalInvocationID.x + GlobalInvocationID.y * (WIDTH) + GlobalInvocationID.z * (WIDTH * HEIGHT)) * (SUPER_SAMPLES * SUPER_SAMPLES * 3 + 1 + u32(time));
 
   var acc = vec3f(0., 0., 0.);
   var march_result: MarchResult;
+  var sun_march_result: MarchResult;
   var ray_pos = vec3f(0, 0, 0);
   var ray_dir = vec3f(0, 0, 1);
 
   for (var sx = 0; sx < SUPER_SAMPLES; sx++) {
     for (var sy = 0; sy < SUPER_SAMPLES; sy++) {
       let offset = vec2f(
-        f32(sx) / SUPER_SAMPLES,
-        f32(sy) / SUPER_SAMPLES,
+        f32(sx) * ONE_OVER_SUPER_SAMPLES,
+        f32(sy) * ONE_OVER_SUPER_SAMPLES,
       );
       
-      for (var ss = 0u; ss < SUB_SAMPLES; ss++) {
-        construct_ray(vec2f(GlobalInvocationID.xy) + offset, &ray_pos, &ray_dir);
-        
-        var sub_acc = vec3f(1., 1., 1.);
+      construct_ray(vec2f(GlobalInvocationID.xy) + offset, &ray_pos, &ray_dir);
+      
+      var sub_acc = vec3f(1., 1., 1.);
+      march(ray_pos, ray_dir, &march_result);
 
-        for (var refl = 0u; refl < MAX_REFL; refl++) {
-          march(ray_pos, ray_dir, &march_result);
+      var material: Material;
 
-          sub_acc *= march_result.material.color;
-          // sub_acc *= march_result.normal;
-
-          if (march_result.material.emissive) {
-            break;
-          }
-
-          // Reflecting: 𝑟=𝑑−2(𝑑⋅𝑛)𝑛
-          let dn2 = 2. * dot(ray_dir, march_result.normal);
-          let refl_dir = ray_dir - dn2 * march_result.normal;
-
-          ray_pos = march_result.position;
-          ray_dir = rand_on_hemisphere(&seed, march_result.normal);
-          ray_dir = mix(refl_dir, ray_dir, march_result.material.roughness);
-          ray_dir = normalize(ray_dir);
-        }
-
-        acc += sub_acc;
+      if (march_result.steps > MAX_STEPS) {
+        material.emissive = true;
+        material.color = sky_color(ray_dir);
       }
+      else {
+        let normal = world_normals(march_result.position);
+        // approximating ambient occlusion
+        // var ao = max(0, f32(march_result.steps));
+        // ao = ao / (1 + ao);
+        // ao = 1 - pow(ao, 20);
+        let ao = 1.;
+
+        // Marching towards the sun
+        march(march_result.position + SUN_DIR * 0.01, SUN_DIR, &sun_march_result);
+
+        var attenuation = select(0., max(0., dot(normal, SUN_DIR)), sun_march_result.steps > MAX_STEPS);
+        // var attenuation = f32(sun_march_result.steps / 100);
+        
+        material_world(march_result.position, normal, attenuation, ao, &material);
+      }
+
+      acc += material.color;
     }
   }
 
-  acc /= SUB_SAMPLES * SUPER_SAMPLES * SUPER_SAMPLES;
+  acc *= ONE_OVER_SUPER_SAMPLES * ONE_OVER_SUPER_SAMPLES;
 
   textureStore(output_tex, GlobalInvocationID.xy, vec4(acc, 1.0));
 }

@@ -46,6 +46,19 @@ class SceneInfo {
   };
 
   private instanceToIdxMap = new Map<Shape, number>();
+  private instancesArray: Shape[] = [];
+
+  /**
+   * Temporary buffer for storing scene info data before uploading
+   * it to the GPU.
+   */
+  sceneInfoBuffer = new ArrayBuffer(SceneInfoStructSize);
+
+  /**
+   * Temporary buffer for storing instance data before uploading
+   * it to the GPU.
+   */
+  instanceBuffer = new ArrayBuffer(ShapeStructSize);
 
   gpuSceneInfoBuffer: GPUBuffer;
   gpuSceneShapesBuffer: GPUBuffer;
@@ -69,9 +82,33 @@ class SceneInfo {
 
     this.gpuSceneShapesBuffer = device.createBuffer({
       label: 'Scene Shapes Buffer',
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE,
       size: roundUp(ShapesArraySize, 16)
     });
+  }
+
+  private writeSceneInfo() {
+    const writer = new BufferWriter(this.sceneInfoBuffer);
+    SceneInfoStruct.write(writer, this.hostSceneInfo);
+    this.device.queue.writeBuffer(
+      this.gpuSceneInfoBuffer,
+      0,
+      this.sceneInfoBuffer,
+      0,
+      this.sceneInfoBuffer.byteLength
+    );
+  }
+
+  private writeDataToIdx(idx: number, data: ShapeStruct) {
+    ShapeStruct.write(new BufferWriter(this.instanceBuffer), data);
+
+    this.device.queue.writeBuffer(
+      this.gpuSceneShapesBuffer, // dest
+      idx * ShapeStructSize, // dest offset
+      this.instanceBuffer, // src
+      0, // src offset
+      this.instanceBuffer.byteLength
+    );
   }
 
   uploadInstance(instance: Shape) {
@@ -86,30 +123,36 @@ class SceneInfo {
       this.hostSceneInfo.numOfShapes++;
 
       // uploading new instance count to the gpu
-      const sceneInfoBuffer = new ArrayBuffer(SceneInfoStructSize);
-      const writer = new BufferWriter(sceneInfoBuffer);
-      SceneInfoStruct.write(writer, this.hostSceneInfo);
-      this.device.queue.writeBuffer(
-        this.gpuSceneInfoBuffer,
-        0,
-        sceneInfoBuffer,
-        0,
-        sceneInfoBuffer.byteLength
-      );
+      this.writeSceneInfo();
 
       this.instanceToIdxMap.set(instance, idx);
+      this.instancesArray.push(instance);
     }
 
-    const instanceBuffer = new ArrayBuffer(ShapeStructSize);
-    ShapeStruct.write(new BufferWriter(instanceBuffer), instance.data);
+    this.writeDataToIdx(idx, instance.data);
+  }
 
-    this.device.queue.writeBuffer(
-      this.gpuSceneShapesBuffer, // dest
-      idx * ShapeStructSize, // dest offset
-      instanceBuffer, // src
-      0, // src offset
-      instanceBuffer.byteLength
-    );
+  deleteInstance(instance: Shape) {
+    const idx = this.instanceToIdxMap.get(instance);
+
+    if (idx === undefined) {
+      // nothing to remove
+      return;
+    }
+
+    // Moving the last element to the place of the removed element
+    const lastInstance = this.instancesArray[this.hostSceneInfo.numOfShapes - 1];
+    this.instancesArray[idx] = lastInstance;
+    this.instanceToIdxMap.set(lastInstance, idx);
+    this.instanceToIdxMap.delete(instance);
+
+    // Decreasing the number of shapes
+    this.hostSceneInfo.numOfShapes--;
+
+    // uploading new instance count to the gpu
+    this.writeSceneInfo();
+
+    this.writeDataToIdx(idx, lastInstance.data);
   }
 }
 
