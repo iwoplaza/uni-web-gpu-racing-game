@@ -4,8 +4,6 @@ import type { Game } from './gameEngine';
 import type GameInstance from './common/gameInstance';
 import type { GameEngineCtx } from './gameEngineCtx';
 import { InputHandler } from './inputHandler';
-import { get } from 'svelte/store';
-import { clientSocket } from './clientSocket';
 
 export let carGame: CarGame | null = null;
 

@@ -5,6 +5,7 @@
   import GameEngine from '$lib/gameEngine';
   import { clientSocket, connect, disconnect } from '$lib/clientSocket';
   import GameInstance from '$lib/common/gameInstance';
+    import { connnectToGame } from '$lib/utils/connectToGame';
 
   let canvas!: HTMLCanvasElement;
   let adress: string = "localhost";
@@ -32,17 +33,7 @@
       <input bind:value={adress} type="text" placeholder="localhost"/>
       <button on:click={()=>
         {
-          const gameEnginePromise = (async () => {
-            const gameInstance = new GameInstance();
-            connect(gameInstance, adress);
-            const carGame = createCarGame(gameInstance);
-          
-            return GameEngine.initFromCanvas(canvas, carGame);
-          })();
-          return () => {
-            gameEnginePromise.then((e) => e.dispose());
-            disconnect();
-          };
+          connnectToGame(canvas, adress)
         }}>Connect</button>
     </div>
 
