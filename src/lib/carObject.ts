@@ -1,37 +1,38 @@
-import type { With } from 'miniplex';
-import { mat4, vec3 } from 'wgpu-matrix';
+import { mat4, utils, vec3 } from 'wgpu-matrix';
 
 import type { GameEngineCtx } from './gameEngineCtx';
 import type GameObject from './gameObject';
 import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
-import type { Entity } from './common/systems';
+import type { PlayerEntity } from './common/systems';
 import type SceneInfo from './graphics/sceneInfo';
 import { sendUpdate } from './utils/sendUpdate';
 
-class CarObject implements GameObject {
-  position: [number, number, number];
-  velocity: [number, number, number];
-  yawAngle: number;
+const WHEEL_TURN_VELOCITY_TO_ANGLE = 10.0;
 
-  // user input
-  isAccelerating = false;
-  isBreaking = false;
-  isTurningRight = false;
-  isTurningLeft = false;
+class CarObject implements GameObject {
+  prevPosition: [number, number, number] = [0, 0, 0];
+  position: [number, number, number] = [0, 0, 0];
+
+  prevYawAngle: number = 0;
+  yawAngle: number = 0;
+
+  prevTurnVelocity: number = 0;
+  turnVelocity: number = 0;
 
   // shapes
   wheels: CarWheelShape[];
   body: CarBodyShape;
 
-  constructor(
-    public readonly playerId: string,
-    private readonly serverEntity: With<Entity, 'position' | 'velocity'>,
-    position: [number, number, number]
-  ) {
-    this.position = [...position];
-    this.velocity = [0, 0, 0];
-    this.yawAngle = 0;
+  constructor(public readonly playerId: string, public readonly entity: PlayerEntity) {
+    vec3.copy(entity.position, this.prevPosition);
+    vec3.copy(entity.position, this.position);
+
+    this.prevYawAngle = entity.yawAngle;
+    this.yawAngle = entity.yawAngle;
+
+    this.prevTurnVelocity = entity.turnVelocity;
+    this.turnVelocity = entity.turnVelocity;
 
     this.wheels = [
       new CarWheelShape([-2.2, 1, 3.5]), // front-left
@@ -50,48 +51,38 @@ class CarObject implements GameObject {
     sceneInfo.deleteInstance(this.body);
   }
 
-  get worldMatrix() {
+  worldMatrix(pt: number) {
+    const tPos = vec3.lerp(this.prevPosition, this.position, pt);
+    const tYaw = utils.lerp(this.prevYawAngle, this.yawAngle, pt);
+
     const worldMatrix = mat4.identity();
-    mat4.translate(worldMatrix, vec3.negate(this.position), worldMatrix);
+    mat4.rotateY(worldMatrix, -tYaw, worldMatrix);
+    mat4.translate(worldMatrix, vec3.negate(tPos), worldMatrix);
 
     return worldMatrix;
   }
-  turnRight() {
-    const angle = this.wheels[0].turnAngle;
-    this.wheels[0].turnAngle = angle + 0.1;
-    this.wheels[1].turnAngle = angle + 0.1;
-  }
-  turnLeft() {
-    const angle = this.wheels[0].turnAngle;
-    this.wheels[0].turnAngle = angle - 0.1;
-    this.wheels[1].turnAngle = angle - 0.1;
-  }
-  brake() {
-    vec3.scale(this.serverEntity.velocity, 0.9, this.serverEntity.velocity);
-    sendUpdate('send-game-update', this.serverEntity);
-  }
-  accelerate() {
-    this.serverEntity.velocity[2] += 0.1;
-    console.log(this.serverEntity.velocity)
-    sendUpdate('send-game-update', this.serverEntity);
-  }
 
-  onServerUpdate() {
-    this.position = [...this.serverEntity.position];
-  }
+  onTick(): void {
+    // Sending inputs every tick
+    sendUpdate('send-game-update', this.entity);
 
-  fixedUpdate(ctx: GameEngineCtx) {
-    // TODO: predicting position, velocity and orientation
-    // const newPos = [...this.position];
-    // vec3.addScaled(newPos, this.serverEntity.velocity, ctx.deltaTime, newPos);
-  }
+    vec3.copy(this.position, this.prevPosition);
+    vec3.copy(this.entity.position, this.position);
 
-  // You may also include a method for collision detection or interaction with the track
+    this.prevYawAngle = this.yawAngle;
+    this.yawAngle = this.entity.yawAngle;
+
+    this.prevTurnVelocity = this.turnVelocity;
+    this.turnVelocity = this.entity.turnVelocity;
+  }
 
   render(ctx: GameEngineCtx) {
-    const worldMatrix = this.worldMatrix;
-    // this.wheels[0].turnAngle = Math.sin(Date.now() * 0.004) * 0.6;
-    // this.wheels[1].turnAngle = Math.sin(Date.now() * 0.004) * 0.6 + Math.PI;
+    const worldMatrix = this.worldMatrix(ctx.pt);
+
+    const tTurnVelocity = utils.lerp(this.prevTurnVelocity, this.turnVelocity, ctx.pt);
+
+    this.wheels[0].turnAngle = tTurnVelocity * WHEEL_TURN_VELOCITY_TO_ANGLE;
+    this.wheels[1].turnAngle = tTurnVelocity * WHEEL_TURN_VELOCITY_TO_ANGLE + Math.PI;
 
     this.wheels[2].turnAngle = 0;
     this.wheels[3].turnAngle = Math.PI;

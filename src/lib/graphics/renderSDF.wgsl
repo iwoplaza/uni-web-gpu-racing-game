@@ -26,7 +26,7 @@ const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
 const MAX_STEPS = 400;
-const SURFACE_DIST = 0.00001;
+const SURFACE_DIST = 0.0001;
 const SUPER_SAMPLES = 2;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
 const FAR = 100.;
@@ -270,7 +270,7 @@ fn material_world(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) 
 }
 
 fn world_normals(point: vec3f) -> vec3f {
-  let epsilon = SURFACE_DIST * 0.1; // arbitrary - should be smaller than any surface detail in your distance function, but not so small as to get lost in float precision
+  let epsilon = SURFACE_DIST * 0.5; // arbitrary - should be smaller than any surface detail in your distance function, but not so small as to get lost in float precision
   let offX = vec3f(point.x + epsilon, point.y, point.z);
   let offY = vec3f(point.x, point.y + epsilon, point.z);
   let offZ = vec3f(point.x, point.y, point.z + epsilon);

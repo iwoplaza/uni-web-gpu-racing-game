@@ -4,11 +4,16 @@ import { type Parsed, object, arrayOf, f32, string as str, bool, i32 } from "typ
 
 export type Entity = {
   playerId?: string;
-  position: [number, number, number];
-  velocity: [number, number, number];
-  maxVelocity?: number;
-  acceleration?: number;
-  turnRate?: number;
+
+  position?: [number, number, number];
+  forwardVelocity?: number;
+  forwardAcceleration?: number;
+  maxForwardVelocity?: number;
+  maxBackwardVelocity?: number;
+
+  yawAngle?: number;
+  turnVelocity?: number;
+  turnAcceleration?: number;
 
   // Tire condition starts full and degrades with time
   tireCondition?: number;
@@ -36,4 +41,15 @@ export const BinaryEntity = object({
   isTurningLeft: bool,
 });
 export type BinaryEntity = Parsed<typeof BinaryEntity>;
-export type PlayerEntity = With<Entity, 'playerId'>;
+export type PlayerEntity = With<
+  Entity,
+  | 'playerId'
+  | 'position'
+  | 'forwardVelocity'
+  | 'forwardAcceleration'
+  | 'maxForwardVelocity'
+  | 'maxBackwardVelocity'
+  | 'turnAcceleration'
+  | 'turnVelocity'
+  | 'yawAngle'
+>;
