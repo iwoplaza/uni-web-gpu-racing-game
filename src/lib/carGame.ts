@@ -9,6 +9,8 @@ import type SceneInfo from './graphics/sceneInfo';
 import { InputHandler } from './inputHandler';
 import { ClientSocket, serverAddress } from './clientSocket';
 import GameEngine from './gameEngine';
+import { sendUpdate } from './utils/sendUpdate';
+import _ from 'lodash';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -44,17 +46,22 @@ export function disconnect() {
 }
 
 class CarGame implements Game {
-  public myId: string | null = null;
+  private myId: string | null = null;
   private playerIdToCarMap = new Map<string, CarObject>();
-  private myCar: CarObject | undefined;
   private objects: GameObject[] = [];
   private readonly inputHandler: InputHandler;
   private readonly gameInstance = new GameInstance();
   public readonly clientSocket;
 
+  private myCar: CarObject | undefined;
+  private previouslySentState: PlayerEntity | null = null;
+
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
-    this.clientSocket = new ClientSocket(this.gameInstance, endpoint);
+    this.clientSocket = new ClientSocket(this.gameInstance, endpoint, (socketId) => {
+      this.myId = socketId;
+      this.gameInstance.localPlayerId = socketId;
+    });
   }
 
   init(sceneInfo: SceneInfo): void {
@@ -67,6 +74,7 @@ class CarGame implements Game {
 
         if (e.playerId === this.myId) {
           this.myCar = car;
+          console.log(`I am ${this.myId}`);
           this.inputHandler.car = car;
         }
       }
@@ -95,6 +103,23 @@ class CarGame implements Game {
     this.clientSocket.dispose();
   }
 
+  sendLocalUpdates() {
+    // TODO: #4
+    //
+    // Check if there is a need to send the update if nothing changed
+    // in values that matter.
+    //
+
+    // END
+
+    if (!this.myCar) {
+      return;
+    }
+
+    sendUpdate('send-game-update', this.myCar.entity);
+    this.previouslySentState = _.cloneDeep(this.myCar.entity);
+  }
+
   onTick(ctx: GameEngineCtx): void {
     this.gameInstance.tick({
       deltaTime: ctx.deltaTime
@@ -103,6 +128,8 @@ class CarGame implements Game {
     for (const obj of this.objects) {
       obj.onTick(ctx);
     }
+
+    this.sendLocalUpdates();
   }
 
   onRender(ctx: GameEngineCtx) {

@@ -21,7 +21,7 @@ export class InputHandler {
 
     this.car.entity.isAccelerating =
       this.pressedKeysSet.has('w') || this.pressedKeysSet.has('leftarrow');
-    this.car.entity.isBreaking =
+    this.car.entity.isBraking =
       this.pressedKeysSet.has('s') || this.pressedKeysSet.has('downarrow');
 
     this.car.entity.isTurningLeft = this.pressedKeysSet.has('a');

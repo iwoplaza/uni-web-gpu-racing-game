@@ -21,7 +21,11 @@ function clamp(value: number, a: number, b: number) {
 
 const MaxTurnVelocity = 0.03;
 
-function movementSystem(world: World<Entity>, /** milliseconds */ deltaTime: number) {
+function movementSystem(
+  world: World<Entity>,
+  limitToPlayerId: string | undefined,
+  /** milliseconds */ deltaTime: number
+) {
   const movingEntities = world.with(
     'position',
     'forwardVelocity',
@@ -35,6 +39,10 @@ function movementSystem(world: World<Entity>, /** milliseconds */ deltaTime: num
   );
 
   for (const entity of movingEntities) {
+    if (entity.playerId !== limitToPlayerId) {
+      continue;
+    }
+
     entity.forwardVelocity += entity.forwardAcceleration * deltaTime;
 
     entity.forwardVelocity = clamp(

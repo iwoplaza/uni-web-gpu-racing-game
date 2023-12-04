@@ -11,51 +11,50 @@ export default function injectSocketIO(server: http.Server) {
 
   const gameInstance = new GameInstance();
 
-  function emit(name: string, data: object | string) {
-    // TODO data compresssion
-    // io.emit(name, wrapWithTimestamp(compress(data)))
+  function emitToAll(name: string, data: object | string) {
     io.emit(name, wrapWithTimestamp(data));
   }
-  function socketEmit(socket: Socket, name: string, data: object) {
-    // TODO data compresssion
-    // socket.emit(name, wrapWithTimestamp(compress(data)))
+
+  function emitToOne(socket: Socket, name: string, data: object) {
     socket.emit(name, wrapWithTimestamp(data));
   }
+
   // eslint-disable-next-line @typescript-eslint/ban-types
   function unwrapTimestamped(action: Function) {
     return function (timestampedUpdate: Timestamped<object>) {
-      // TODO data decompresssion
-      // action(decompresss(timestampedUpdate.value)
       action(timestampedUpdate.value);
     };
   }
 
   setInterval(() => {
-    gameInstance.tick({
-      deltaTime: ServerTickInterval
-    });
+    // TODO: #5
+    //
+    // Run the game-logic on the server as well
+    //
+
+    // END
 
     const state = gameInstance.world.entities;
-    emit('game-update', state);
+    emitToAll('game-update', state);
   }, ServerTickInterval);
 
   io.on('connection', (socket) => {
-    socketEmit(socket, 'initial-state', gameInstance.world.entities);
+    emitToOne(socket, 'initial-state', gameInstance.world.entities);
 
     const playerEntity = gameInstance.addPlayer(socket.id);
     socket.on('disconnect', () => {
       gameInstance.removePlayer(socket.id);
-      emit('player-left', socket.id);
+      emitToAll('player-left', socket.id);
     });
 
     socket.on(
       'send-game-update',
       unwrapTimestamped((player: PlayerEntity) => {
-        gameInstance.syncWithClient({ ...player, playerId: socket.id});
+        gameInstance.syncWithClient({ ...player, playerId: socket.id });
       })
     );
 
-    emit('player-connected', playerEntity);
+    emitToAll('player-connected', playerEntity);
   });
 
   console.log('SocketIO injected');

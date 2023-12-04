@@ -3,7 +3,6 @@ import io, { Socket } from 'socket.io-client';
 
 import type GameInstance from './common/gameInstance';
 import type { Entity, PlayerEntity } from './common/systems';
-import { carGame } from './carGame';
 import type { Timestamped } from './common/wrapWithTimestamp';
 export const latency = writable(0);
 export const jitter = writable(0);
@@ -31,9 +30,6 @@ function executeWithDelay(action: Function) {
     const delay = lat + Math.random() * jit;
     setTimeout(() => {
       updatePing(timestampedUpdate.timestamp);
-      // TODO data compresssion
-      // action(decompresss(timestampedUpdate.value)
-      //
       action(timestampedUpdate.value);
     }, delay);
   };
@@ -42,7 +38,11 @@ function executeWithDelay(action: Function) {
 export class ClientSocket {
   socket: Socket;
 
-  constructor(private gameInstance: GameInstance, endpoint?: string) {
+  constructor(
+    private gameInstance: GameInstance,
+    endpoint: string,
+    onConnected: (socketId: string) => void
+  ) {
     const socketOptions = {
       autoConnect: false
     };
@@ -52,9 +52,7 @@ export class ClientSocket {
 
     this.socket.on('connect', () => {
       console.log(`Connected to server`);
-      if (carGame) {
-        carGame.myId = this.socket.id;
-      }
+      onConnected(this.socket.id);
     });
 
     this.socket.on(

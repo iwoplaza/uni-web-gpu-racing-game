@@ -58,7 +58,6 @@ class GBuffer {
   }
 
   updateSize(size: [number, number]) {
-    // TODO: Recreate textures.
     this._size = size;
   }
 }
