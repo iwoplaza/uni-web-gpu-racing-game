@@ -52,7 +52,7 @@ export default function injectSocketIO(server: http.Server) {
     socket.on(
       'send-game-update',
       unwrapTimestamped((player: PlayerEntity) => {
-        gameInstance.syncWithClient(player);
+        gameInstance.syncWithClient({ ...player, playerId: socket.id});
       })
     );
 
