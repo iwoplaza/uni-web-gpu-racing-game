@@ -9,11 +9,18 @@ export const latency = writable(0);
 export const jitter = writable(0);
 export const speedCheat = writable(0);
 export const ping = writable(0);
+export const maxBitrate = writable(150);
+export const packetsLost = writable(0);
+export const packetsSent = writable(0);
+export const packetsReceived = writable(0);
+export const lastSentTime = writable(0);
 
 function updatePing(timestamp: number) {
   const current = Date.now();
   const newPing = Math.abs(current - timestamp);
   ping.set(newPing);
+  const received = get(packetsReceived);
+  packetsReceived.set(received + 1);
 }
 
 // eslint-disable-next-line @typescript-eslint/ban-types

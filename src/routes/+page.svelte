@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
 
   import { connect, createCarGame, disconnect, disposeCarGame } from '$lib/carGame';
-  import { jitter, latency, ping, serverAddress, speedCheat } from '$lib/clientSocket';
+  import { jitter, latency, maxBitrate, packetsLost, packetsReceived, packetsSent, ping, serverAddress, speedCheat } from '$lib/clientSocket';
 
   let canvas!: HTMLCanvasElement;
   let addressInput: string = 'localhost';
@@ -30,9 +30,14 @@
       <input type="range" min="0" max="150" step="10" bind:value={$latency} />
       <p>Jitter (0-100 ms). Current value {$jitter}</p>
       <input type="range" min="0" max="100" step="1" bind:value={$jitter} />
+      <p>Max Bitrate (Max messages per 10 seconds). Current value {$maxBitrate}</p>
+      <input type="range" min="1" max="200" step="1" bind:value={$maxBitrate} />
       <p>Car speed cheat (0-200%). Current value {$speedCheat}</p>
       <input type="range" min="0" max="200" step="10" bind:value={$speedCheat} />
       <h3>Ping: {$ping}</h3>
+      <h3>Packetloss: {$packetsLost}</h3>
+      <h3>Packets received/sent: {$packetsReceived}/{$packetsSent}</h3>
+
     </div>
   {:else}
     <div style="margin: 20px;">

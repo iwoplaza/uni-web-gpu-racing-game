@@ -7,6 +7,9 @@ import { CarBodyShape } from './graphics/carBodyShape';
 import type { PlayerEntity } from './common/systems';
 import type SceneInfo from './graphics/sceneInfo';
 import { sendUpdate } from './utils/sendUpdate';
+import _ from 'lodash';
+import { get } from 'svelte/store';
+import { speedCheat } from './clientSocket';
 
 const WHEEL_TURN_VELOCITY_TO_ANGLE = 10.0;
 
@@ -23,6 +26,7 @@ class CarObject implements GameObject {
   // shapes
   wheels: CarWheelShape[];
   body: CarBodyShape;
+  previouslySentState: PlayerEntity;
 
   constructor(public readonly playerId: string, public readonly entity: PlayerEntity) {
     vec3.copy(entity.position, this.prevPosition);
@@ -42,6 +46,7 @@ class CarObject implements GameObject {
     ];
 
     this.body = new CarBodyShape([0, 1, 0]);
+    this.previouslySentState = _.cloneDeep(entity);
   }
 
   dispose(sceneInfo: SceneInfo) {
@@ -62,9 +67,33 @@ class CarObject implements GameObject {
     return worldMatrix;
   }
 
+  async computeAndSendDeltaAsync(): Promise<void> {
+    const keys = ['isAccelerating', 'isBreaking', 'isTurningLeft', 'isTurningRight'];
+    const delta = _.pickBy(
+      this.entity,
+      (v, k) => keys.includes(k) && v != this.previouslySentState[k]
+    );
+    if (Object.keys(delta).length > 0) {
+      this.entity.forwardAcceleration = get(speedCheat);
+      sendUpdate('send-game-update', {
+        playerId: this.playerId,
+        position: this.entity.position,
+        ..._.pick(this.entity, keys)
+      } as PlayerEntity);
+      this.previouslySentState = _.cloneDeep(this.entity);
+    }
+  }
+
   onTick(): void {
     // Sending inputs every tick
-    sendUpdate('send-game-update', this.entity);
+
+    // CODE FOR sending only deltas
+    // Create an object to hold the delta state
+    this.computeAndSendDeltaAsync().catch((err) => {
+      console.error('Error in computeAndSendDeltaAsync:', err);
+    });
+    // END CODE FOR sending only deltas
+    // sendUpdate('send-game-update', this.entity);
 
     vec3.copy(this.position, this.prevPosition);
     vec3.copy(this.entity.position, this.position);
