@@ -2,12 +2,13 @@ import type { With } from 'miniplex';
 
 export type Entity = {
   playerId?: string;
+  // car properties
+  maxForwardVelocity?: number;
+  maxBackwardVelocity?: number;
 
   position?: [number, number, number];
   forwardVelocity?: number;
   forwardAcceleration?: number;
-  maxForwardVelocity?: number;
-  maxBackwardVelocity?: number;
 
   yawAngle?: number;
   turnVelocity?: number;
@@ -19,7 +20,7 @@ export type Entity = {
 
   // User input
   isAccelerating?: boolean;
-  isBreaking?: boolean;
+  isBraking?: boolean;
   isTurningRight?: boolean;
   isTurningLeft?: boolean;
 

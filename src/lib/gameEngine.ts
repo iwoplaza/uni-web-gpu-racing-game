@@ -126,7 +126,8 @@ class GameEngine {
       this.timeBuildup = this.timeBuildup % this.clientTickInterval;
     }
 
-    this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
+    // TODO: Uncomment to smooth between client ticks
+    // this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
     this.game.onRender(this.renderCtx);
 
     const commandEncoder = device.createCommandEncoder();

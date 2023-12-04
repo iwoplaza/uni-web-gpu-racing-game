@@ -1,14 +1,14 @@
+import _ from 'lodash';
+import { get } from 'svelte/store';
 import { mat4, utils, vec3 } from 'wgpu-matrix';
 
 import type { GameEngineCtx } from './gameEngineCtx';
 import type GameObject from './gameObject';
 import { CarWheelShape } from './graphics/carWheelShape';
 import { CarBodyShape } from './graphics/carBodyShape';
-import type { PlayerEntity } from './common/systems';
+import type { Entity, PlayerEntity } from './common/systems';
 import type SceneInfo from './graphics/sceneInfo';
-import { sendUpdate } from './utils/sendUpdate';
-import _ from 'lodash';
-import { get } from 'svelte/store';
+
 import { speedCheat } from './clientSocket';
 
 const WHEEL_TURN_VELOCITY_TO_ANGLE = 10.0;
@@ -26,7 +26,6 @@ class CarObject implements GameObject {
   // shapes
   wheels: CarWheelShape[];
   body: CarBodyShape;
-  previouslySentState: PlayerEntity;
 
   constructor(public readonly playerId: string, public readonly entity: PlayerEntity) {
     vec3.copy(entity.position, this.prevPosition);
@@ -46,7 +45,6 @@ class CarObject implements GameObject {
     ];
 
     this.body = new CarBodyShape([0, 1, 0]);
-    this.previouslySentState = _.cloneDeep(entity);
   }
 
   dispose(sceneInfo: SceneInfo) {
@@ -67,32 +65,21 @@ class CarObject implements GameObject {
     return worldMatrix;
   }
 
-  async computeAndSendDeltaAsync(): Promise<void> {
-    const keys = ['isAccelerating', 'isBreaking', 'isTurningLeft', 'isTurningRight'];
+  /**
+   * @returns true if the same within the given keys
+   */
+  compareStateWith(other: Partial<Record<keyof Entity, unknown>>, keys: (keyof Entity)[]) {
     const delta = _.pickBy(
       this.entity,
-      (v, k) => keys.includes(k) && v != this.previouslySentState[k]
+      (v, k) => keys.includes(k as keyof Entity) && v != other[k as keyof Entity]
     );
-    if (Object.keys(delta).length > 0) {
-      this.entity.forwardAcceleration = get(speedCheat);
-      sendUpdate('send-game-update', {
-        playerId: this.playerId,
-        ..._.pick(this.entity, keys)
-      } as PlayerEntity);
-      this.previouslySentState = _.cloneDeep(this.entity);
-    }
+
+    return Object.keys(delta).length === 0;
   }
 
   onTick(): void {
     // Sending inputs every tick
-
-    // CODE FOR sending only deltas
-    // Create an object to hold the delta state
-    this.computeAndSendDeltaAsync().catch((err) => {
-      console.error('Error in computeAndSendDeltaAsync:', err);
-    });
-    // END CODE FOR sending only deltas
-    // sendUpdate('send-game-update', this.entity);
+    this.entity.maxForwardVelocity = 0.05 + 0.05 * get(speedCheat);
 
     vec3.copy(this.position, this.prevPosition);
     vec3.copy(this.entity.position, this.position);
@@ -106,7 +93,6 @@ class CarObject implements GameObject {
 
   render(ctx: GameEngineCtx) {
     const worldMatrix = this.worldMatrix(ctx.pt);
-
     const tTurnVelocity = utils.lerp(this.prevTurnVelocity, this.turnVelocity, ctx.pt);
 
     this.wheels[0].turnAngle = tTurnVelocity * WHEEL_TURN_VELOCITY_TO_ANGLE;

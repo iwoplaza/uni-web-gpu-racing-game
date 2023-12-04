@@ -1,10 +1,9 @@
 import { World } from 'miniplex';
-import { vec3 } from 'wgpu-matrix';
+// import { vec3 } from 'wgpu-matrix';
 
 import type { Entity, PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
-import predictionDriftSystem from './systems/predictionDriftSystem';
 
 export interface TickContext {
   /**
@@ -15,15 +14,26 @@ export interface TickContext {
 
 class GameInstance {
   world: World<Entity>;
+  public localPlayerId: string | undefined;
 
   constructor() {
     this.world = new World<Entity>();
   }
 
   tick(ctx: TickContext) {
-    steeringSystem(this.world);
-    movementSystem(this.world, ctx.deltaTime);
-    predictionDriftSystem(this.world, ctx.deltaTime);
+    // TODO: #1
+    //
+    // Update not only the local player, but all players (predict their movements)
+    //
+    steeringSystem(this.world, this.localPlayerId);
+    movementSystem(this.world, this.localPlayerId, ctx.deltaTime);
+
+    // TODO: #3
+    //
+    // Create a system that corrects drifts.
+    //
+
+    // END
   }
 
   addPlayer(playerId: string) {
@@ -64,12 +74,12 @@ class GameInstance {
       return;
     }
 
-    this.world.update(serverPlayer, {
-      isAccelerating: clientPlayer.isAccelerating,
-      isBreaking: clientPlayer.isBreaking,
-      isTurningLeft: clientPlayer.isTurningLeft,
-      isTurningRight: clientPlayer.isTurningRight
-    });
+    // TODO: #7
+    //
+    // Accept only user input, not state (safety).
+    //
+    this.world.update(serverPlayer, clientPlayer);
+    // END
   }
 
   syncWithServer(serverPlayer: PlayerEntity) {
@@ -82,37 +92,30 @@ class GameInstance {
       return;
     }
 
-    // -- Snapping to authoritative value
-    // this.world.update(clientPlayer, {
-    //   position: serverPlayer.position,
-    //   forwardVelocity: serverPlayer.forwardVelocity,
-    //   forwardAcceleration: serverPlayer.forwardAcceleration,
-    //   yawAngle: serverPlayer.yawAngle
-    // });
+    // TODO: #6
+    //
+    // Accept server authoritative updates to local player.
+    //
+    if (serverPlayer.playerId === this.localPlayerId) {
+      return;
+    }
+    // END
 
-    // -- Correcting drift over time
+    // Snapping to authoritative value
     this.world.update(clientPlayer, {
+      position: serverPlayer.position,
       forwardVelocity: serverPlayer.forwardVelocity,
-      forwardAcceleration: serverPlayer.forwardAcceleration
+      forwardAcceleration: serverPlayer.forwardAcceleration,
+      yawAngle: serverPlayer.yawAngle
     });
 
-    if (!clientPlayer.positionDrift) {
-      clientPlayer.positionDrift = [0, 0, 0];
-    }
-    vec3.sub(serverPlayer.position, clientPlayer.position, clientPlayer.positionDrift);
-    clientPlayer.yawDrift = serverPlayer.yawAngle - clientPlayer.yawAngle;
+    // TODO: #2
+    //
+    // Calculate how much the current predictions differ from the latest server update.
+    // Store them as 'positionDrift' and 'yawDrift' on the clientPlayer.
+    //
 
-    if (vec3.lenSq(clientPlayer.positionDrift!) > 30) {
-      console.log(`Snapping position`);
-      vec3.zero(clientPlayer.positionDrift);
-      vec3.copy(serverPlayer.position, clientPlayer.position);
-    }
-
-    if (Math.abs(clientPlayer.yawDrift!) > 1) {
-      console.log(`Snapping yaw`);
-      clientPlayer.yawDrift = 0;
-      clientPlayer.yawAngle = serverPlayer.yawAngle;
-    }
+    // END
   }
 }
 
