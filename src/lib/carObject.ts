@@ -72,6 +72,7 @@ class CarObject implements GameObject {
   }
   accelerate() {
     this.serverEntity.velocity[2] += 0.1;
+    console.log(this.serverEntity.velocity)
     sendUpdate('send-game-update', this.serverEntity);
   }
 

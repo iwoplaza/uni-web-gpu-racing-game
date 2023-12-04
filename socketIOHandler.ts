@@ -4,6 +4,7 @@ import { Server, Socket } from 'socket.io';
 import GameInstance from './src/lib/common/gameInstance';
 import { wrapWithTimestamp, type Timestamped } from './src/lib/common/wrapWithTimestamp';
 import type { PlayerEntity } from './src/lib/common/systems';
+import { decompress } from './src/lib/utils/compression';
 const TICK_RATE = 1000 / 30; // 30 FPS
 
 export default function injectSocketIO(server: http.Server) {
@@ -25,8 +26,10 @@ export default function injectSocketIO(server: http.Server) {
   function unwrapTimestamped(action: Function) {
     return function (timestampedUpdate: Timestamped<object>) {
       // TODO data decompresssion
-      // action(decompresss(timestampedUpdate.value)
-      action(timestampedUpdate.value);
+      const value = decompress(timestampedUpdate.value as Buffer)
+      console.log(value)
+      action(value);
+      // action(timestampedUpdate.value);
     };
   }
 
