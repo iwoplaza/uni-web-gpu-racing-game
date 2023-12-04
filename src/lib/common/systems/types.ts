@@ -39,6 +39,4 @@ export type PlayerEntity = With<
   | 'turnAcceleration'
   | 'turnVelocity'
   | 'yawAngle'
-  | 'positionDrift'
-  | 'yawDrift'
 >;

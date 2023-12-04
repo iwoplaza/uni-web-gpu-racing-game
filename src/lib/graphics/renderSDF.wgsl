@@ -27,7 +27,7 @@ const PI = 3.14159265359;
 const PI2 = 2. * PI;
 const MAX_STEPS = 400;
 const SURFACE_DIST = 0.0001;
-const SUPER_SAMPLES = 2;
+const SUPER_SAMPLES = 1;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
 const FAR = 100.;
 

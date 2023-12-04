@@ -37,10 +37,7 @@ class GameInstance {
 
       yawAngle: 0,
       turnVelocity: 0,
-      turnAcceleration: 0,
-
-      positionDrift: [0, 0, 0],
-      yawDrift: 0
+      turnAcceleration: 0
     };
 
     console.log(`New player: ${playerId}`);
@@ -99,10 +96,23 @@ class GameInstance {
       forwardAcceleration: serverPlayer.forwardAcceleration
     });
 
+    if (!clientPlayer.positionDrift) {
+      clientPlayer.positionDrift = [0, 0, 0];
+    }
     vec3.sub(serverPlayer.position, clientPlayer.position, clientPlayer.positionDrift);
     clientPlayer.yawDrift = serverPlayer.yawAngle - clientPlayer.yawAngle;
 
-    console.log(clientPlayer.positionDrift);
+    if (vec3.lenSq(clientPlayer.positionDrift!) > 30) {
+      console.log(`Snapping position`);
+      vec3.zero(clientPlayer.positionDrift);
+      vec3.copy(serverPlayer.position, clientPlayer.position);
+    }
+
+    if (Math.abs(clientPlayer.yawDrift!) > 1) {
+      console.log(`Snapping yaw`);
+      clientPlayer.yawDrift = 0;
+      clientPlayer.yawAngle = serverPlayer.yawAngle;
+    }
   }
 }
 
