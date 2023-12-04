@@ -8,7 +8,8 @@ export async function sendUpdate(name: string, value: object) {
   const lat = get(latency);
   const delay = lat + Math.random() * jit;
   setTimeout(() => {
-    // console.log(`Sending ${name} update`);
+    // TODO data compresssion
+    // carGame?.clientSocket.socket.emit(name, wrapWithTimestamp(compress(value)));
     carGame?.clientSocket.socket.emit(name, wrapWithTimestamp(value));
   }, delay);
 }
