@@ -35,7 +35,7 @@
       <h3>Ping: {$ping}</h3>
     </div>
   {:else}
-    <div>
+    <div style="margin: 20px;">
       <p>Server address</p>
       <input bind:value={addressInput} type="text" placeholder="localhost" />
       <button class="button-19" on:click={() => connect(canvas, addressInput)}>Connect</button>
@@ -122,7 +122,7 @@
   .disconnect
   {
     background-color: rgb(171, 18, 18);
-
+    margin: 20px;
   }
   .disconnect:after {
     background-color: rgb(249, 0, 0);
