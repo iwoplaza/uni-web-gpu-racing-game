@@ -4,7 +4,8 @@ import { Server, Socket } from 'socket.io';
 import GameInstance from './src/lib/common/gameInstance';
 import { wrapWithTimestamp, type Timestamped } from './src/lib/common/wrapWithTimestamp';
 import type { PlayerEntity } from './src/lib/common/systems';
-const TICK_RATE = 1000 / 30; // 30 FPS
+
+const TICK_INTERVAL = 1000 / 10; // 10 FPS
 
 export default function injectSocketIO(server: http.Server) {
   const io = new Server(server);
@@ -31,11 +32,13 @@ export default function injectSocketIO(server: http.Server) {
   }
 
   setInterval(() => {
-    gameInstance.tick();
+    gameInstance.tick({
+      deltaTime: TICK_INTERVAL
+    });
 
     const state = gameInstance.world.entities;
     emit('game-update', state);
-  }, TICK_RATE);
+  }, TICK_INTERVAL);
 
   io.on('connection', (socket) => {
     socketEmit(socket, 'initial-state', gameInstance.world.entities);
@@ -49,7 +52,7 @@ export default function injectSocketIO(server: http.Server) {
     socket.on(
       'send-game-update',
       unwrapTimestamped((player: PlayerEntity) => {
-        gameInstance.updatePlayer(player);
+        gameInstance.syncWithClient(player);
       })
     );
 

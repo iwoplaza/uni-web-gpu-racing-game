@@ -7,6 +7,11 @@ export interface GameEngineCtx {
   readonly deltaTime: number;
 
   /**
+   * Partial tick (0 to 1)
+   */
+  readonly pt: number;
+
+  /**
    * Useful for instancing new shapes
    */
   readonly sceneInfo: SceneInfo;

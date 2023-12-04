@@ -1,7 +1,15 @@
-import { World, type With } from 'miniplex';
+import { World } from 'miniplex';
 
 import type { Entity, PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
+import steeringSystem from './systems/steeringSystem';
+
+export interface TickContext {
+  /**
+   * delta time in milliseconds
+   */
+  deltaTime: number;
+}
 
 class GameInstance {
   world: World<Entity>;
@@ -11,15 +19,23 @@ class GameInstance {
     this.world = new World<Entity>();
   }
 
-  tick() {
-    movementSystem(this.world);
+  tick(ctx: TickContext) {
+    steeringSystem(this.world);
+    movementSystem(this.world, ctx.deltaTime);
   }
 
   addPlayer(playerId: string) {
-    const playerEntity: Entity = {
+    const playerEntity: PlayerEntity = {
       playerId,
       position: [0, 0, 0],
-      velocity: [0, 0, 0]
+      forwardVelocity: 0,
+      forwardAcceleration: 0,
+      maxForwardVelocity: 0.05,
+      maxBackwardVelocity: 0.03,
+
+      yawAngle: 0,
+      turnVelocity: 0,
+      turnAcceleration: 0
     };
 
     console.log(`New player: ${playerId}`);
@@ -36,15 +52,42 @@ class GameInstance {
     }
   }
 
-  updatePlayer(serverPlayer: With<Entity, 'playerId'>) {
+  syncWithClient(clientPlayer: PlayerEntity) {
+    // Finding a server counterpart to the client player
+    const serverPlayer = this.world.where(
+      (e): e is PlayerEntity => e.playerId === clientPlayer.playerId
+    ).first;
+
+    if (!serverPlayer) {
+      return;
+    }
+
+    this.world.update(serverPlayer, {
+      isAccelerating: clientPlayer.isAccelerating,
+      isBreaking: clientPlayer.isBreaking,
+      isTurningLeft: clientPlayer.isTurningLeft,
+      isTurningRight: clientPlayer.isTurningRight
+    });
+    this.onPlayerUpdated?.(serverPlayer);
+  }
+
+  syncWithServer(serverPlayer: PlayerEntity) {
+    // Finding a client counterpart to the server player
     const clientPlayer = this.world.where(
       (e): e is PlayerEntity => e.playerId === serverPlayer.playerId
     ).first;
 
-    if (clientPlayer) {
-      this.world.update(clientPlayer, serverPlayer);
-      this.onPlayerUpdated?.(clientPlayer);
+    if (!clientPlayer) {
+      return;
     }
+
+    this.world.update(clientPlayer, {
+      position: serverPlayer.position,
+      forwardVelocity: serverPlayer.forwardVelocity,
+      forwardAcceleration: serverPlayer.forwardAcceleration,
+      yawAngle: serverPlayer.yawAngle
+    });
+    this.onPlayerUpdated?.(clientPlayer);
   }
 }
 

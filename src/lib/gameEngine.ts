@@ -6,18 +6,20 @@ export interface Game {
   init(sceneInfo: SceneInfo): void;
   dispose(sceneInfo: SceneInfo): void;
 
+  onTick(ctx: GameEngineCtx): void;
   onRender(ctx: GameEngineCtx): void;
 }
 
 class GameEngineCtxImpl implements GameEngineCtx {
   lastTime: number;
   deltaTime: number = 0;
+  pt: number = 0;
 
   constructor(public readonly sceneInfo: SceneInfo) {
     this.lastTime = Date.now();
   }
 
-  tickRender() {
+  tick() {
     const now = Date.now();
     this.deltaTime = now - this.lastTime;
     this.lastTime = now;
@@ -35,14 +37,17 @@ class GameEngine {
   private initState: GameEngineInitState = GameEngineInitState.NOT_INITIALIZED;
   private renderer: SceneRenderer | undefined = undefined;
 
-  private ctx: GameEngineCtxImpl;
+  private renderCtx: GameEngineCtxImpl;
+  private tickCtx: GameEngineCtxImpl;
   private sceneInfo: SceneInfo;
+  private timeBuildup = 0;
 
   private stopAnimationLoop?: () => void;
 
-  constructor(private readonly game: Game) {
+  constructor(private readonly game: Game, private clientTickInterval: number) {
     this.sceneInfo = new SceneInfo();
-    this.ctx = new GameEngineCtxImpl(this.sceneInfo);
+    this.renderCtx = new GameEngineCtxImpl(this.sceneInfo);
+    this.tickCtx = new GameEngineCtxImpl(this.sceneInfo);
   }
 
   async start(canvas: HTMLCanvasElement) {
@@ -111,9 +116,18 @@ class GameEngine {
   }
 
   renderFrame(device: GPUDevice) {
-    this.ctx.tickRender();
+    this.renderCtx.tick();
 
-    this.game.onRender(this.ctx);
+    this.timeBuildup += this.renderCtx.deltaTime;
+
+    if (this.timeBuildup >= this.clientTickInterval) {
+      this.tickCtx.tick();
+      this.game.onTick(this.tickCtx);
+      this.timeBuildup = this.timeBuildup % this.clientTickInterval;
+    }
+
+    this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
+    this.game.onRender(this.renderCtx);
 
     const commandEncoder = device.createCommandEncoder();
     this.renderer?.render(commandEncoder);

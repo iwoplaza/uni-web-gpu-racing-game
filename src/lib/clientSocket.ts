@@ -1,9 +1,8 @@
-import type { With } from 'miniplex';
 import { get, writable } from 'svelte/store';
 import io, { Socket } from 'socket.io-client';
 
 import type GameInstance from './common/gameInstance';
-import type { Entity } from './common/systems';
+import type { Entity, PlayerEntity } from './common/systems';
 import { carGame } from './carGame';
 import type { Timestamped } from './common/wrapWithTimestamp';
 export const latency = writable(0);
@@ -92,7 +91,8 @@ export class ClientSocket {
           if (!entity.playerId) {
             continue;
           }
-          this.gameInstance.updatePlayer(entity as With<Entity, 'playerId'>);
+
+          this.gameInstance.syncWithServer(entity as PlayerEntity);
         }
       })
     );
