@@ -55,6 +55,7 @@ export default function injectSocketIO(server: http.Server) {
     socket.on(
       'send-game-update',
       unwrapTimestamped((player: PlayerEntity) => {
+        console.log(player)
         gameInstance.syncWithClient(player);
       })
     );

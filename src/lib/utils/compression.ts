@@ -9,7 +9,9 @@ export function compress(value: Entity) {
   console.log(buffer)
   return buffer;
 }
-export function decompress(buffer: Buffer) {
+
+
+export function decompress(buffer: Buffer| ArrayBuffer) {
   const reader = new BufferReader(buffer);
   return BinaryEntity.read(reader) as unknown as Entity;
 }

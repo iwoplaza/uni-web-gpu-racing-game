@@ -1,6 +1,5 @@
 import type { With } from 'miniplex';
-import { type Parsed, object, arrayOf, f32, string as str, bool, i32 } from "typed-binary";
-
+import { type Parsed, object, arrayOf, f32, string as str } from 'typed-binary';
 
 export type Entity = {
   playerId?: string;
@@ -29,17 +28,15 @@ export type Entity = {
 export const BinaryEntity = object({
   playerId: str,
   position: arrayOf(f32),
-  velocity:  arrayOf(f32),
-  maxVelocity: i32,
-  acceleration: f32,
-  turnRate: f32,
-  tireCondition: f32,
-  inPitStop: bool,
-  isAccelerating: bool,
-  isBreaking: bool,
-  isTurningRight: bool,
-  isTurningLeft: bool,
+  forwardVelocity: f32,
+  forwardAcceleration: f32,
+  maxForwardVelocity: f32,
+  maxBackwardVelocity: f32,
+  yawAngle: f32,
+  turnVelocity: f32,
+  turnAcceleration: f32
 });
+
 export type BinaryEntity = Parsed<typeof BinaryEntity>;
 export type PlayerEntity = With<
   Entity,
