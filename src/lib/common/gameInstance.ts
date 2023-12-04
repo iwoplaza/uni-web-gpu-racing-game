@@ -1,8 +1,10 @@
 import { World } from 'miniplex';
+import { vec3 } from 'wgpu-matrix';
 
 import type { Entity, PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
+import predictionDriftSystem from './systems/predictionDriftSystem';
 
 export interface TickContext {
   /**
@@ -13,7 +15,6 @@ export interface TickContext {
 
 class GameInstance {
   world: World<Entity>;
-  onPlayerUpdated: ((entity: PlayerEntity) => void) | null = null;
 
   constructor() {
     this.world = new World<Entity>();
@@ -22,6 +23,7 @@ class GameInstance {
   tick(ctx: TickContext) {
     steeringSystem(this.world);
     movementSystem(this.world, ctx.deltaTime);
+    predictionDriftSystem(this.world, ctx.deltaTime);
   }
 
   addPlayer(playerId: string) {
@@ -35,7 +37,10 @@ class GameInstance {
 
       yawAngle: 0,
       turnVelocity: 0,
-      turnAcceleration: 0
+      turnAcceleration: 0,
+
+      positionDrift: [0, 0, 0],
+      yawDrift: 0
     };
 
     console.log(`New player: ${playerId}`);
@@ -68,7 +73,6 @@ class GameInstance {
       isTurningLeft: clientPlayer.isTurningLeft,
       isTurningRight: clientPlayer.isTurningRight
     });
-    this.onPlayerUpdated?.(serverPlayer);
   }
 
   syncWithServer(serverPlayer: PlayerEntity) {
@@ -81,13 +85,24 @@ class GameInstance {
       return;
     }
 
+    // -- Snapping to authoritative value
+    // this.world.update(clientPlayer, {
+    //   position: serverPlayer.position,
+    //   forwardVelocity: serverPlayer.forwardVelocity,
+    //   forwardAcceleration: serverPlayer.forwardAcceleration,
+    //   yawAngle: serverPlayer.yawAngle
+    // });
+
+    // -- Correcting drift over time
     this.world.update(clientPlayer, {
-      position: serverPlayer.position,
       forwardVelocity: serverPlayer.forwardVelocity,
-      forwardAcceleration: serverPlayer.forwardAcceleration,
-      yawAngle: serverPlayer.yawAngle
+      forwardAcceleration: serverPlayer.forwardAcceleration
     });
-    this.onPlayerUpdated?.(clientPlayer);
+
+    vec3.sub(serverPlayer.position, clientPlayer.position, clientPlayer.positionDrift);
+    clientPlayer.yawDrift = serverPlayer.yawAngle - clientPlayer.yawAngle;
+
+    console.log(clientPlayer.positionDrift);
   }
 }
 

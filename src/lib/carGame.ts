@@ -3,13 +3,12 @@ import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import GameInstance from './common/gameInstance';
 import type { PlayerEntity } from './common/systems';
+import { ClientTickInterval } from './common/constants';
 import type { GameEngineCtx } from './gameEngineCtx';
 import type SceneInfo from './graphics/sceneInfo';
 import { InputHandler } from './inputHandler';
 import { ClientSocket, serverAddress } from './clientSocket';
 import GameEngine from './gameEngine';
-
-const ClientTickInterval = 1000 / 15; // 15 FPS
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
