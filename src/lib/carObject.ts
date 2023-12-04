@@ -77,7 +77,6 @@ class CarObject implements GameObject {
       this.entity.forwardAcceleration = get(speedCheat);
       sendUpdate('send-game-update', {
         playerId: this.playerId,
-        position: this.entity.position,
         ..._.pick(this.entity, keys)
       } as PlayerEntity);
       this.previouslySentState = _.cloneDeep(this.entity);
