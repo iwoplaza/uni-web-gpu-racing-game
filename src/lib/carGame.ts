@@ -2,11 +2,14 @@ import CarObject from './carObject';
 import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import GameInstance from './common/gameInstance';
+import type { PlayerEntity } from './common/systems';
 import type { GameEngineCtx } from './gameEngineCtx';
 import type SceneInfo from './graphics/sceneInfo';
 import { InputHandler } from './inputHandler';
 import { ClientSocket, serverAddress } from './clientSocket';
 import GameEngine from './gameEngine';
+
+const ClientTickInterval = 1000 / 15; // 15 FPS
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -19,7 +22,7 @@ export function createCarGame(canvas: HTMLCanvasElement) {
   }
 
   carGame = new CarGame(endpoint);
-  gameEngine = new GameEngine(carGame);
+  gameEngine = new GameEngine(carGame, ClientTickInterval);
   gameEngine.start(canvas);
 }
 
@@ -56,19 +59,10 @@ class CarGame implements Game {
   }
 
   init(sceneInfo: SceneInfo): void {
-    this.gameInstance.onPlayerUpdated = (player) => {
-      const car = this.playerIdToCarMap.get(player.playerId);
-      if (!car) {
-        return;
-      }
-
-      car.onServerUpdate();
-    };
-
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {
         console.log(`New player joined!: ${e.playerId}`);
-        const car = new CarObject(e.playerId, e, [0, 0, 0]);
+        const car = new CarObject(e.playerId, e as PlayerEntity);
         this.playerIdToCarMap.set(e.playerId, car);
         this.objects.push(car);
 
@@ -102,9 +96,19 @@ class CarGame implements Game {
     this.clientSocket.dispose();
   }
 
+  onTick(ctx: GameEngineCtx): void {
+    this.gameInstance.tick({
+      deltaTime: ctx.deltaTime
+    });
+
+    for (const obj of this.objects) {
+      obj.onTick(ctx);
+    }
+  }
+
   onRender(ctx: GameEngineCtx) {
     if (this.myCar) {
-      ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix;
+      ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix(ctx.pt);
     }
 
     for (const obj of this.objects) {
