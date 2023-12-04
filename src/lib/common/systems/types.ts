@@ -22,6 +22,10 @@ export type Entity = {
   isBreaking?: boolean;
   isTurningRight?: boolean;
   isTurningLeft?: boolean;
+
+  // Prediction drift
+  positionDrift?: [number, number, number];
+  yawDrift?: number;
 };
 
 export type PlayerEntity = With<
