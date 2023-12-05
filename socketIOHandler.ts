@@ -27,12 +27,9 @@ export default function injectSocketIO(server: http.Server) {
   }
 
   setInterval(() => {
-    // TODO: #5
-    //
-    // Run the game-logic on the server as well
-    //
-
-    // END
+    gameInstance.tick({
+      deltaTime: ServerTickInterval,
+    });
 
     const state = gameInstance.world.entities;
     emitToAll('game-update', state);

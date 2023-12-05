@@ -8,7 +8,7 @@ function steeringSystem(world: World<Entity>, limitToPlayerId: string | undefine
   const steerables = world.with('playerId');
 
   for (const entity of steerables) {
-    if (entity.playerId !== limitToPlayerId) {
+    if (limitToPlayerId && entity.playerId !== limitToPlayerId) {
       continue;
     }
 

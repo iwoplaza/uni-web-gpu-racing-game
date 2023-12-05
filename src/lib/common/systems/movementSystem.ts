@@ -33,16 +33,12 @@ function movementSystem(
     'maxForwardVelocity',
     'maxBackwardVelocity',
 
+    'yawAngle',
     'turnVelocity',
     'turnAcceleration',
-    'yawAngle'
   );
 
   for (const entity of movingEntities) {
-    if (entity.playerId !== limitToPlayerId) {
-      continue;
-    }
-
     entity.forwardVelocity += entity.forwardAcceleration * deltaTime;
 
     entity.forwardVelocity = clamp(

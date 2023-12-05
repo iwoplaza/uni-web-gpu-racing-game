@@ -2,7 +2,7 @@ import CarObject from './carObject';
 import type GameObject from './gameObject';
 import type { Game } from './gameEngine';
 import GameInstance from './common/gameInstance';
-import type { PlayerEntity } from './common/systems';
+import type { Entity, PlayerEntity } from './common/systems';
 import { ClientTickInterval } from './common/constants';
 import type { GameEngineCtx } from './gameEngineCtx';
 import type SceneInfo from './graphics/sceneInfo';
@@ -45,6 +45,8 @@ export function disconnect() {
   disposeCarGame();
 }
 
+const ClientUpdateFields = (['isAccelerating', 'isBraking', 'isTurningLeft', 'isTurningRight'] as const) satisfies readonly (keyof Entity)[];
+
 class CarGame implements Game {
   private myId: string | null = null;
   private playerIdToCarMap = new Map<string, CarObject>();
@@ -54,7 +56,7 @@ class CarGame implements Game {
   public readonly clientSocket;
 
   private myCar: CarObject | undefined;
-  private previouslySentState: PlayerEntity | null = null;
+  private previouslySentState: Pick<PlayerEntity, typeof ClientUpdateFields[number]> | null = null;
 
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
@@ -104,20 +106,17 @@ class CarGame implements Game {
   }
 
   sendLocalUpdates() {
-    // TODO: #4
-    //
-    // Check if there is a need to send the update if nothing changed
-    // in values that matter.
-    //
-
-    // END
-
     if (!this.myCar) {
       return;
     }
 
-    sendUpdate('send-game-update', this.myCar.entity);
-    this.previouslySentState = _.cloneDeep(this.myCar.entity);
+    const myCar = this.myCar;
+    const sameAsLastUpdate = ClientUpdateFields.every(field => this.previouslySentState && this.previouslySentState[field] === myCar.entity[field]);
+
+    if (!this.previouslySentState || !sameAsLastUpdate) {
+      this.previouslySentState = _.pick(myCar.entity, ClientUpdateFields);
+      sendUpdate('send-game-update', this.previouslySentState);
+    }
   }
 
   onTick(ctx: GameEngineCtx): void {

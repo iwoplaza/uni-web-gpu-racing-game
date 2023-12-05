@@ -1,9 +1,10 @@
 import { World } from 'miniplex';
-// import { vec3 } from 'wgpu-matrix';
+import { vec3 } from 'wgpu-matrix';
 
 import type { Entity, PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
+import driftCorrectionSystem from './systems/driftCorrectionSystem';
 
 export interface TickContext {
   /**
@@ -21,19 +22,9 @@ class GameInstance {
   }
 
   tick(ctx: TickContext) {
-    // TODO: #1
-    //
-    // Update not only the local player, but all players (predict their movements)
-    //
     steeringSystem(this.world, this.localPlayerId);
-    movementSystem(this.world, this.localPlayerId, ctx.deltaTime);
-
-    // TODO: #3
-    //
-    // Create a system that corrects drifts.
-    //
-
-    // END
+    movementSystem(this.world, undefined, ctx.deltaTime);
+    driftCorrectionSystem(this.world, ctx.deltaTime);
   }
 
   addPlayer(playerId: string) {
@@ -74,12 +65,12 @@ class GameInstance {
       return;
     }
 
-    // TODO: #7
-    //
-    // Accept only user input, not state (safety).
-    //
-    this.world.update(serverPlayer, clientPlayer);
-    // END
+    this.world.update(serverPlayer, {
+      isAccelerating: clientPlayer.isAccelerating,
+      isBraking: clientPlayer.isBraking,
+      isTurningLeft: clientPlayer.isTurningLeft,
+      isTurningRight: clientPlayer.isTurningRight
+    });
   }
 
   syncWithServer(serverPlayer: PlayerEntity) {
@@ -92,30 +83,32 @@ class GameInstance {
       return;
     }
 
-    // TODO: #6
-    //
-    // Accept server authoritative updates to local player.
-    //
-    if (serverPlayer.playerId === this.localPlayerId) {
-      return;
-    }
-    // END
 
     // Snapping to authoritative value
     this.world.update(clientPlayer, {
-      position: serverPlayer.position,
       forwardVelocity: serverPlayer.forwardVelocity,
       forwardAcceleration: serverPlayer.forwardAcceleration,
-      yawAngle: serverPlayer.yawAngle
+      turnVelocity: serverPlayer.turnVelocity,
+      turnAcceleration: serverPlayer.turnAcceleration,
     });
 
-    // TODO: #2
-    //
-    // Calculate how much the current predictions differ from the latest server update.
-    // Store them as 'positionDrift' and 'yawDrift' on the clientPlayer.
-    //
+    // Drift correction
 
-    // END
+    if (!clientPlayer.positionDrift)
+      clientPlayer.positionDrift = [0, 0, 0];
+    vec3.sub(serverPlayer.position, clientPlayer.position, clientPlayer.positionDrift);
+
+    clientPlayer.yawDrift = serverPlayer.yawAngle - clientPlayer.yawAngle;
+
+    if (vec3.lenSq(clientPlayer.positionDrift) > 60) {
+      vec3.zero(clientPlayer.positionDrift);
+      vec3.copy(serverPlayer.position, clientPlayer.position);
+    }
+
+    if (Math.abs(clientPlayer.yawDrift) > 2) {
+      clientPlayer.yawDrift = 0;
+      clientPlayer.yawAngle = serverPlayer.yawAngle;
+    }
   }
 }
 
