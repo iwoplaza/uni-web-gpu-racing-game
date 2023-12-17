@@ -3,37 +3,35 @@ import io, { Socket } from 'socket.io-client';
 
 import type GameInstance from './common/gameInstance';
 import type { Entity, PlayerEntity } from './common/systems';
-import type { Timestamped } from './common/wrapWithTimestamp';
+import pipeline, { type Middleware } from './common/pipeline';
+import ScheduledTaskQueue from './common/scheduledTaskQueue';
+import { measurePingMiddleware } from './common/ping';
+import {
+  extractTimestampMiddleware,
+  timestampMiddleware,
+  type Timestamped
+} from './common/timestampMiddleware';
+import type { ClientUpdateField } from './common/constants';
+
 export const latency = writable(0);
 export const jitter = writable(0);
-export const speedCheat = writable(0);
-export const ping = writable(0);
 export const maxBitrate = writable(150);
 export const packetsLost = writable(0);
-export const packetsSent = writable(0);
-export const packetsReceived = writable(0);
 export const lastSentTime = writable(0);
 
-function updatePing(timestamp: number) {
-  const current = Date.now();
-  const newPing = Math.abs(current - timestamp);
-  ping.set(newPing);
-  const received = get(packetsReceived);
-  packetsReceived.set(received + 1);
-}
-
-// eslint-disable-next-line @typescript-eslint/ban-types
-function executeWithDelay(action: Function) {
-  return function (timestampedUpdate: Timestamped<object>) {
+const fakeDelayMiddleware = <T>(queue: ScheduledTaskQueue): Middleware<T, T> => {
+  return (value, next) => {
     const jit = get(jitter);
     const lat = get(latency);
     const delay = lat + Math.random() * jit;
-    setTimeout(() => {
-      updatePing(timestampedUpdate.timestamp);
-      action(timestampedUpdate.value);
-    }, delay);
+
+    // Keeping payloads in a queue makes sure they get sent
+    // in the right order
+    queue.schedule(Date.now() + delay, () => next(value));
   };
-}
+};
+
+const taskQueue = new ScheduledTaskQueue();
 
 export class ClientSocket {
   socket: Socket;
@@ -55,53 +53,75 @@ export class ClientSocket {
       onConnected(this.socket.id);
     });
 
-    this.socket.on(
-      'initial-state',
-      executeWithDelay((entities: Entity[]) => {
-        console.log('Got initial state');
-
-        this.gameInstance.world.clear();
-        for (const entity of entities) {
-          this.gameInstance.world.add(entity);
-        }
-      })
-    );
-
-    this.socket.on(
-      'player-connected',
-      executeWithDelay((entity: Entity) => {
-        this.gameInstance.world.add(entity);
-      })
-    );
-
-    this.socket.on(
-      'player-left',
-      executeWithDelay((playerId: string) => {
-        const playerEntity = this.gameInstance.world.where((e) => e.playerId === playerId).first;
-
-        if (playerEntity) {
-          this.gameInstance.world.remove(playerEntity);
-        }
-      })
-    );
-
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
     });
 
     this.socket.on(
-      'game-update',
-      executeWithDelay((entities: Entity[]) => {
-        for (const entity of entities) {
-          if (!entity.playerId) {
-            continue;
-          }
+      'initial-state',
+      pipeline<Timestamped<Entity[]>>()
+        .use(fakeDelayMiddleware(taskQueue)) //
+        .use(measurePingMiddleware()) //
+        .use(extractTimestampMiddleware()) //
+        .finally((entities) => {
+          console.log('Got initial state');
 
-          this.gameInstance.syncWithServer(entity as PlayerEntity);
-        }
-      })
+          this.gameInstance.world.clear();
+          for (const entity of entities) {
+            this.gameInstance.world.add(entity);
+          }
+        })
+    );
+
+    this.socket.on(
+      'player-connected',
+      pipeline<Timestamped<Entity>>()
+        .use(fakeDelayMiddleware(taskQueue)) //
+        .use(measurePingMiddleware()) //
+        .use(extractTimestampMiddleware()) //
+        .finally((entity) => {
+          this.gameInstance.world.add(entity);
+        })
+    );
+
+    this.socket.on(
+      'player-left',
+      pipeline<Timestamped<string>>()
+        .use(fakeDelayMiddleware(taskQueue)) //
+        .use(measurePingMiddleware()) //
+        .use(extractTimestampMiddleware()) //
+        .finally((playerId) => {
+          const playerEntity = this.gameInstance.world.where((e) => e.playerId === playerId).first;
+
+          if (playerEntity) {
+            this.gameInstance.world.remove(playerEntity);
+          }
+        })
+    );
+
+    this.socket.on(
+      'game-update',
+      pipeline<Timestamped<Entity[]>>()
+        .use(fakeDelayMiddleware(taskQueue)) //
+        .use(measurePingMiddleware()) //
+        .use(extractTimestampMiddleware()) //
+        .finally((entities) => {
+          for (const entity of entities) {
+            if (!entity.playerId) {
+              continue;
+            }
+
+            this.gameInstance.syncWithServer(entity as PlayerEntity);
+          }
+        })
     );
   }
+
+  sendUserInput = pipeline<Pick<Entity, ClientUpdateField>>() //
+    .use(timestampMiddleware())
+    .finally((payload) => {
+      this.socket.emit('user-input', payload);
+    });
 
   dispose() {
     this.socket.disconnect();
@@ -121,17 +141,13 @@ function getStorage() {
 }
 
 export const serverAddress = (() => {
-  let latestValue = getStorage()?.getItem('server-address') ?? null;
-
-  const { subscribe, set } = writable<string | null>(latestValue);
+  const { subscribe, set } = writable<string | null>(
+    getStorage()?.getItem('server-address') ?? null
+  );
 
   return {
     subscribe,
-    get() {
-      return latestValue;
-    },
     set(value: string | null) {
-      latestValue = value;
       if (value !== null) {
         getStorage()?.setItem('server-address', value);
       } else {
