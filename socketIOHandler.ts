@@ -1,10 +1,10 @@
 import type http from 'node:http';
 import { Server, Socket } from 'socket.io';
 
-import { ServerTickInterval } from './src/lib/common/constants';
 import GameInstance from './src/lib/common/gameInstance';
-import { wrapWithTimestamp, type Timestamped } from './src/lib/common/wrapWithTimestamp';
 import type { PlayerEntity } from './src/lib/common/systems';
+import { ServerTickInterval } from './src/lib/common/constants';
+import { wrapWithTimestamp, type Timestamped } from './src/lib/common/timestampMiddleware';
 
 export default function injectSocketIO(server: http.Server) {
   const io = new Server(server);
@@ -28,7 +28,7 @@ export default function injectSocketIO(server: http.Server) {
 
   setInterval(() => {
     gameInstance.tick({
-      deltaTime: ServerTickInterval,
+      deltaTime: ServerTickInterval
     });
 
     const state = gameInstance.world.entities;
@@ -45,7 +45,7 @@ export default function injectSocketIO(server: http.Server) {
     });
 
     socket.on(
-      'send-game-update',
+      'user-input',
       unwrapTimestamped((player: PlayerEntity) => {
         gameInstance.syncWithClient({ ...player, playerId: socket.id });
       })

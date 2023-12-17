@@ -1,22 +1,23 @@
-import CarObject from './carObject';
-import type GameObject from './gameObject';
+import _ from 'lodash';
+import { get } from 'svelte/store';
+
+import GameEngine from './gameEngine';
 import type { Game } from './gameEngine';
-import GameInstance from './common/gameInstance';
-import type { Entity, PlayerEntity } from './common/systems';
-import { ClientTickInterval } from './common/constants';
 import type { GameEngineCtx } from './gameEngineCtx';
 import type SceneInfo from './graphics/sceneInfo';
-import { InputHandler } from './inputHandler';
+import GameInstance from './common/gameInstance';
+import type { PlayerEntity } from './common/systems';
+import { ClientTickInterval, ClientUpdateFields } from './common/constants';
 import { ClientSocket, serverAddress } from './clientSocket';
-import GameEngine from './gameEngine';
-import { sendUpdate } from './utils/sendUpdate';
-import _ from 'lodash';
+import { InputHandler } from './inputHandler';
+import type GameObject from './gameObject';
+import CarObject from './carObject';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
 
 export function createCarGame(canvas: HTMLCanvasElement) {
-  const endpoint = serverAddress.get();
+  const endpoint = get(serverAddress);
 
   if (!endpoint) {
     return;
@@ -45,8 +46,6 @@ export function disconnect() {
   disposeCarGame();
 }
 
-const ClientUpdateFields = (['isAccelerating', 'isBraking', 'isTurningLeft', 'isTurningRight'] as const) satisfies readonly (keyof Entity)[];
-
 class CarGame implements Game {
   private myId: string | null = null;
   private playerIdToCarMap = new Map<string, CarObject>();
@@ -56,7 +55,8 @@ class CarGame implements Game {
   public readonly clientSocket;
 
   private myCar: CarObject | undefined;
-  private previouslySentState: Pick<PlayerEntity, typeof ClientUpdateFields[number]> | null = null;
+  private previouslySentState: Pick<PlayerEntity, (typeof ClientUpdateFields)[number]> | null =
+    null;
 
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
@@ -111,11 +111,13 @@ class CarGame implements Game {
     }
 
     const myCar = this.myCar;
-    const sameAsLastUpdate = ClientUpdateFields.every(field => this.previouslySentState && this.previouslySentState[field] === myCar.entity[field]);
+    const sameAsLastUpdate = ClientUpdateFields.every(
+      (field) => this.previouslySentState && this.previouslySentState[field] === myCar.entity[field]
+    );
 
     if (!this.previouslySentState || !sameAsLastUpdate) {
       this.previouslySentState = _.pick(myCar.entity, ClientUpdateFields);
-      sendUpdate('send-game-update', this.previouslySentState);
+      this.clientSocket.sendUserInput(this.previouslySentState);
     }
   }
 
