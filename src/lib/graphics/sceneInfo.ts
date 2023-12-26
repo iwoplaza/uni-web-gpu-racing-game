@@ -218,25 +218,45 @@ class SceneInfo {
 // enum
 ${this.shapeDefinitions.map((def) => wgsl`const ${def.token}_id = ${String(def.id)};\n`)}
 
-// functions
+// sdf functions
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-fn ${def.token}(in_pos: vec3f, shape_idx: u32) -> f32 {
-  var pos = in_pos;
-  ${def.kind.shapeCode}
-}
-`
-)}`;
+    fn sdf_${def.token}(in_pos: vec3f, shape_idx: u32) -> f32 {
+      var pos = in_pos;
+      ${def.kind.shapeCode}
+    }`
+)}
+
+// material functions
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    fn mat_${def.token}(ctx: ptr<function, EnvContext>, shape_idx: u32, out: ptr<function, Material>) {
+      var pos = (*ctx).pos;
+      ${def.kind.materialCode}
+    }`
+)}
+
+
+`;
   }
 
   get sceneResolverCode() {
     return wgsl`
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-if (kind == ${String(def.id)}) {
-  return ${def.token}(pos, idx);
-}
-`
+    if (kind == ${String(def.id)}) {
+      return sdf_${def.token}(pos, idx);
+    }`
+)}`;
+  }
+
+  get materialResolverCode() {
+    return wgsl`
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    if (kind == ${String(def.id)}) {
+      mat_${def.token}(ctx, u32(shape_idx), out);
+    }`
 )}`;
   }
 }

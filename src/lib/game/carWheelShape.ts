@@ -3,31 +3,7 @@ import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 import type { Shape, ShapeData } from '../graphics/sceneInfo';
 import wgsl from '../graphics/wgsl';
 import { op, sdf, snippets } from '../graphics/sdf';
-
-const shapeCode = wgsl`
-  ${snippets.applyTransform}
-
-  let pos2 = ${op.revolveX}(pos, 0.25);
-
-  return ${op.union}(
-    ${op.inflate}(
-      ${sdf.box2}(pos2, vec2f(0.1)),
-      0.1 // roundness
-    ),
-    // union with
-    ${op.union}(
-      ${op.inflate}(
-        ${sdf.box2}(pos2 + vec2f(0.125, -0.125), vec2f(0.1, 0.025)),
-        0.025
-      ),
-      // union with
-      ${op.inflate}(
-        ${sdf.box2}(pos2 + vec2f(0.11, -0.02), vec2f(0.1, 0.005)),
-        0.01
-      )
-    )
-  );
-`;
+import { lambert } from '../graphics/wgslMaterial';
 
 export class CarWheelShape implements Shape {
   kind = CarWheelShape;
@@ -60,7 +36,32 @@ export class CarWheelShape implements Shape {
     };
   }
 
-  static get shapeCode() {
-    return shapeCode;
-  }
+  static shapeCode = wgsl`
+  ${snippets.applyTransform}
+
+  let pos2 = ${op.revolveX}(pos, 0.25);
+
+  return ${op.union}(
+    ${op.inflate}(
+      ${sdf.box2}(pos2, vec2f(0.1)),
+      0.1 // roundness
+    ),
+    // union with
+    ${op.union}(
+      ${op.inflate}(
+        ${sdf.box2}(pos2 + vec2f(0.125, -0.125), vec2f(0.1, 0.025)),
+        0.025
+      ),
+      // union with
+      ${op.inflate}(
+        ${sdf.box2}(pos2 + vec2f(0.11, -0.02), vec2f(0.1, 0.005)),
+        0.01
+      )
+    )
+  );
+  `;
+
+  static materialCode = wgsl`
+  ${lambert}(ctx, vec3f(0.2, 0.2, 0.2), out);
+  `;
 }

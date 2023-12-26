@@ -16,6 +16,7 @@ import RoadObject from './roadObject';
 import { CarBodyShape } from './carBodyShape';
 import { CarWheelShape } from './carWheelShape';
 import { RoadSegmentShape } from './roadSegmentShape';
+import StaticEnvironmentShape from './staticEnvironmentShape';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -62,7 +63,8 @@ class CarGame implements Game {
   private previouslySentState: Pick<PlayerEntity, (typeof ClientUpdateFields)[number]> | null =
     null;
 
-  private roadObject = new RoadObject();
+  private staticEnvironmentShape = new StaticEnvironmentShape();
+  private roadObject: RoadObject;
 
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
@@ -71,6 +73,10 @@ class CarGame implements Game {
       this.gameInstance.localPlayerId = socketId;
     });
 
+    this.roadObject = new RoadObject(
+      this.gameInstance.world.with('roadPoints').first?.roadPoints ?? []
+    );
+
     this.objects.push(this.roadObject);
   }
 
@@ -78,6 +84,9 @@ class CarGame implements Game {
     sceneInfo.registerShapeKind(CarBodyShape);
     sceneInfo.registerShapeKind(CarWheelShape);
     sceneInfo.registerShapeKind(RoadSegmentShape);
+    sceneInfo.registerShapeKind(StaticEnvironmentShape);
+
+    sceneInfo.uploadInstance(this.staticEnvironmentShape);
 
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {

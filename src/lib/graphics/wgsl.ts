@@ -34,6 +34,11 @@ export class WGSLToken {
   constructor(public readonly prefix: string) {}
 }
 
+export type WGSLParamValue = string | number;
+class WGSLParam {
+  constructor(public readonly description: string, public readonly defaultValue?: WGSLParamValue) {}
+}
+
 class WGSLFunction {
   private nameToken: WGSLToken;
   public declaration: WGSLCode;
@@ -81,7 +86,7 @@ export class WGSLCode {
     return list;
   }
 
-  resolve(paramBindings: [WGSLParam, string | number][], root = true) {
+  resolve(paramBindings: [WGSLParam, WGSLParamValue][], root = true) {
     let code = '';
 
     if (root) {
@@ -99,11 +104,11 @@ export class WGSLCode {
           code += s.resolve(paramBindings, false);
           break;
         case s instanceof WGSLParam: {
-          const binding = paramBindings.find(([param]) => param === s);
-          if (!binding) {
+          const [, value = s.defaultValue] = paramBindings.find(([param]) => param === s) ?? [];
+          if (!value) {
             throw new Error(`Missing parameter binding for '${s.description}'`);
           }
-          code += String(binding[1]);
+          code += String(value);
           break;
         }
         case s instanceof WGSLFunction:
@@ -119,10 +124,6 @@ export class WGSLCode {
 
     return code;
   }
-}
-
-class WGSLParam {
-  constructor(public readonly description: string) {}
 }
 
 export type WGSLSegment = string | WGSLToken | WGSLParam | WGSLCode | WGSLFunction;
@@ -161,8 +162,8 @@ function token(prefix: string): WGSLToken {
   return new WGSLToken(prefix);
 }
 
-function param(description: string): WGSLParam {
-  return new WGSLParam(description);
+function param(description: string, defaultValue?: WGSLParamValue): WGSLParam {
+  return new WGSLParam(description, defaultValue);
 }
 
 export default Object.assign(code, {

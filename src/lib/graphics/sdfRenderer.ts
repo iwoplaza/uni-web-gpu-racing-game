@@ -4,6 +4,7 @@ import { TimeInfoBuffer } from './timeInfoBuffer';
 import type GBuffer from './gBuffer';
 import type SceneInfo from './sceneInfo';
 import wgsl from './wgsl';
+import { SunDir, checkerboard } from './wgslMaterial';
 
 const viewportWidthParam = wgsl.param('Viewport Width');
 const viewportHeightParam = wgsl.param('Viewport Height');
@@ -62,37 +63,11 @@ struct SceneShape {
 @group(2) @binding(1) var<storage, read> scene_info: SceneInfo;
 @group(2) @binding(2) var<storage, read> scene_shapes: array<SceneShape, MAX_INSTANCES>;
 
-const MATERIAL_CAR_WHEEL = 0;
-const MATERIAL_CAR_BODY = 1;
-const MATERIAL_GROUND = 2;
-const MATERIAL_NORMAL_TEST = 100;
-
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
   return 16./255. + (64.738 * rgb.r + 129.057 * rgb.g + 25.064 * rgb.b) / 255.;
 }
 
-// -- SDF
-const SUN_DIR = normalize(vec3f(-0.5, 1., -0.2));
-const SUN_COLOR = vec3f(1., 0.95, 0.8);
-const AMBIENT_COLOR = vec3f(0.19, 0.2, 0.23);
-
-fn mat_lambert(ctx: ptr<function, EnvContext>, albedo: vec3f, out: ptr<function, Material>) {
-  (*out).color = (AMBIENT_COLOR + albedo * SUN_COLOR * (*ctx).attenuation) * (*ctx).ao;
-}
-
 ${sceneInfo.shapeDefinitionsCode}
-
-fn sdf_sphere(pos: vec3f, o: vec3f, r: f32) -> f32 {
-  return distance(pos, o) - r;
-}
-
-fn sdf_ground_plane(pos: vec3f) -> f32 {
-  return pos.y;
-}
-
-fn mat_ground_plane(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) {
-  mat_lambert(ctx, pat_checkerboard((*ctx).pos.xz, 0.2f) * vec3f(0.3, 0.6, 0.3), out);
-}
 
 fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
@@ -105,23 +80,17 @@ fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
 fn sdf_world(pos: vec3f) -> f32 {
   var min_dist = FAR;
 
-  min_dist = min(sdf_ground_plane(pos), min_dist);
-
-  for (var idx = 0u; idx < min(u32(scene_info.num_of_shapes), MAX_INSTANCES); idx++) {
+  let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
+  for (var idx = 0u; idx < instances; idx++) {
     min_dist = min(sdf_scene_shape(pos, idx), min_dist);
   }
 
   return min_dist;
 }
 
-fn pat_checkerboard(dir: vec2f, scale: f32) -> f32 {
-  let uv = floor(scale * dir);
-  return 0.2 + 0.5 * ((uv.x + uv.y) - 2.0 * floor((uv.x + uv.y) / 2.0));
-}
-
 fn sky_color(dir: vec3f) -> vec3f {
   let t = dir.y / 2. + 0.5;
-  let c = pat_checkerboard(dir.xy, 30.);
+  let c = ${checkerboard}(dir.xy, 30.);
 
   return mix(
     vec3f(0.1, 0.15, 0.5),
@@ -134,38 +103,22 @@ fn material_world(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) 
   (*out).emissive = false;
   (*out).color = vec3f(0., 0., 0.);
 
-  var mat_idx = -1;
+  var shape_idx = -1;
   var min_dist = FAR;
 
-  {
-    let obj_dist = sdf_ground_plane((*ctx).pos);
-    if (obj_dist < min_dist) {
-      min_dist = obj_dist;
-      mat_idx = MATERIAL_GROUND;
-    }
-  }
-
-  for (var idx = 0u; idx < min(u32(scene_info.num_of_shapes), MAX_INSTANCES); idx++) {
+  let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
+  for (var idx = 0u; idx < instances; idx++) {
     let obj_dist = sdf_scene_shape((*ctx).pos, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
-      mat_idx = i32(scene_shapes[idx].material_idx);
+      shape_idx = i32(idx);
     }
   }
 
-  if (mat_idx != -1) { // not sky
-    if (mat_idx == MATERIAL_CAR_WHEEL) {
-      mat_lambert(ctx, vec3f(0.2, 0.2, 0.2), out);
-    }
-    else if (mat_idx == MATERIAL_CAR_BODY) {
-      mat_lambert(ctx, vec3f(0.8, 0.5, 0.2), out);
-    }
-    else if (mat_idx == MATERIAL_GROUND) {
-      mat_ground_plane(ctx, out);
-    }
-    else if (mat_idx == MATERIAL_NORMAL_TEST) {
-      (*out).color = vec3f((*ctx).normal.x + 0.5, (*ctx).normal.y + 0.5, (*ctx).normal.z + 0.5);
-    }
+  if (shape_idx != -1) { // not sky
+    let kind = scene_shapes[shape_idx].kind;
+
+    ${sceneInfo.materialResolverCode}
   }
 }
 
@@ -296,9 +249,9 @@ fn main_frag(
         let ao = 1.;
 
         // Marching towards the sun
-        march(march_result.position + SUN_DIR * 0.01, SUN_DIR, &sun_march_result);
+        march(march_result.position + ${SunDir} * 0.01, ${SunDir}, &sun_march_result);
 
-        var attenuation = select(0., max(0., dot(normal, SUN_DIR)), sun_march_result.steps > MAX_STEPS);
+        var attenuation = select(0., max(0., dot(normal, ${SunDir})), sun_march_result.steps > MAX_STEPS);
         // var attenuation = f32(sun_march_result.steps / 100);
 
         var env_ctx: EnvContext;

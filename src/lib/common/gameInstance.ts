@@ -5,6 +5,7 @@ import type { Entity, PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
 import driftCorrectionSystem from './systems/driftCorrectionSystem';
+import roadCollisionSystem from './systems/roadCollisionSystem';
 
 export interface TickContext {
   /**
@@ -19,12 +20,21 @@ class GameInstance {
 
   constructor() {
     this.world = new World<Entity>();
+
+    this.world.add({
+      roadPoints: [
+        { pos: [0, 0], dir: [0, 10] },
+        { pos: [-20, 50], dir: [0, 10] },
+        { pos: [20, 100], dir: [0, 10] }
+      ]
+    });
   }
 
   tick(ctx: TickContext) {
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);
+    roadCollisionSystem(this.world, ctx.deltaTime);
   }
 
   addPlayer(playerId: string) {
@@ -83,19 +93,17 @@ class GameInstance {
       return;
     }
 
-
     // Snapping to authoritative value
     this.world.update(clientPlayer, {
       forwardVelocity: serverPlayer.forwardVelocity,
       forwardAcceleration: serverPlayer.forwardAcceleration,
       turnVelocity: serverPlayer.turnVelocity,
-      turnAcceleration: serverPlayer.turnAcceleration,
+      turnAcceleration: serverPlayer.turnAcceleration
     });
 
     // Drift correction
 
-    if (!clientPlayer.positionDrift)
-      clientPlayer.positionDrift = [0, 0, 0];
+    if (!clientPlayer.positionDrift) clientPlayer.positionDrift = [0, 0, 0];
     vec3.sub(serverPlayer.position, clientPlayer.position, clientPlayer.positionDrift);
 
     clientPlayer.yawDrift = serverPlayer.yawAngle - clientPlayer.yawAngle;

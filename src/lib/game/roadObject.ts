@@ -1,27 +1,29 @@
+import { vec2 } from 'wgpu-matrix';
+
+import type { RoadPoint } from '$lib/common/systems/types';
 import type { GameEngineCtx } from '$lib/gameEngineCtx';
 import type SceneInfo from '$lib/graphics/sceneInfo';
 import type GameObject from '../gameObject';
 import { RoadSegmentShape } from './roadSegmentShape';
 
 class RoadObject implements GameObject {
-  private segmentShapes: RoadSegmentShape[];
+  private segmentShapes: RoadSegmentShape[] = [];
   private dirty = true;
 
-  constructor() {
-    this.segmentShapes = [
-      new RoadSegmentShape([
-        [0, -100],
-        [30, -60],
-        [-10, -20],
-        [0, 20]
-      ]),
-      new RoadSegmentShape([
-        [0, 20],
-        [10, 60],
-        [20, 100],
-        [50, 140]
-      ])
-    ];
+  constructor(roadPoints: RoadPoint[]) {
+    console.log(roadPoints);
+
+    for (let i = 0; i < roadPoints.length - 1; i++) {
+      const point = roadPoints[i];
+      const nextPoint = roadPoints[i + 1];
+
+      const a = point.pos;
+      const b = vec2.add(point.pos, point.dir) as [number, number];
+      const c = vec2.sub(nextPoint.pos, nextPoint.dir) as [number, number];
+      const d = nextPoint.pos;
+
+      this.segmentShapes.push(new RoadSegmentShape([a, b, c, d]));
+    }
   }
 
   dispose(sceneInfo: SceneInfo): void {

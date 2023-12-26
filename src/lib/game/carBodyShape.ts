@@ -3,18 +3,7 @@ import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 import type { Shape, ShapeData } from '../graphics/sceneInfo';
 import wgsl from '../graphics/wgsl';
 import { op, sdf, snippets } from '../graphics/sdf';
-
-const shapeCode = wgsl`
-  ${snippets.applyTransform}
-
-  return ${op.union}(
-    ${sdf.box3}(pos, vec3f(0.8, 0.3, 2)),
-    ${op.inflate}(
-      ${sdf.box3}(pos + vec3f(0, 0.2, -3.5), vec3f(1, 0.07, .3)),
-      0.5
-    ),
-  );
-`;
+import { lambert } from '../graphics/wgslMaterial';
 
 export class CarBodyShape implements Shape {
   kind = CarBodyShape;
@@ -45,7 +34,19 @@ export class CarBodyShape implements Shape {
     };
   }
 
-  static get shapeCode() {
-    return shapeCode;
-  }
+  static shapeCode = wgsl`
+  ${snippets.applyTransform}
+
+  return ${op.union}(
+    ${sdf.box3}(pos, vec3f(0.8, 0.3, 2)),
+    ${op.inflate}(
+      ${sdf.box3}(pos + vec3f(0, 0.2, -3.5), vec3f(1, 0.07, .3)),
+      0.5
+    ),
+  );
+`;
+
+  static materialCode = wgsl`
+  ${lambert}(ctx, vec3f(0.8, 0.5, 0.2), out);
+  `;
 }

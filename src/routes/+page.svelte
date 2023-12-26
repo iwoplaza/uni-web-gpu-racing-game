@@ -5,6 +5,8 @@
   import { packetsReceived, packetsSent, ping } from '$lib/common/ping';
   import { jitter, latency, maxBitrate, packetsLost, serverAddress } from '$lib/clientSocket';
 
+  import FpsCounter from '$lib/FpsCounter.svelte';
+
   let canvas!: HTMLCanvasElement;
   let addressInput: string = 'localhost';
 
@@ -23,6 +25,7 @@
 </svelte:head>
 
 <section>
+  <FpsCounter />
   <canvas bind:this={canvas} width={256} height={256} />
   {#if $serverAddress}
     <button class="button-19 disconnect" on:click={() => disconnect()}>Disconnect</button>

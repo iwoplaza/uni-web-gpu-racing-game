@@ -176,10 +176,6 @@ export const cubicBezier2 = wgsl.fn(
 
   var n1 = (s1*H2-s2*H1) / (H2-H1);
   n1 /= 1. - abs(n1);
-
-  // Clipping the domain at the ends
-  n1 = max(0., min(n1, 1.));
-  // END
   
   let B1 = U1;
   let B2 = U2+n1*B1;
@@ -189,10 +185,13 @@ export const cubicBezier2 = wgsl.fn(
   
   var roots = ${solveQuartic}(B1, B2, B3, B4, B5);
   
-  let n2 = roots.x;
-  let n3 = roots.y;
-  let n4 = roots.z;
-  let n5 = roots.w;
+  // Clipping the domain at the ends
+  n1 = max(0., min(n1, 1.));
+  let n2 = max(0., min(roots.x, 1.));
+  let n3 = max(0., min(roots.y, 1.));
+  let n4 = max(0., min(roots.z, 1.));
+  let n5 = max(0., min(roots.w, 1.));
+  // END
 
   let N1 = n1*(n1*(S1*n1+S2)+S3)+S4; let I1 = ${dd('N1')};
   let N2 = n2*(n2*(S1*n2+S2)+S3)+S4; let I2 = ${dd('N2')};

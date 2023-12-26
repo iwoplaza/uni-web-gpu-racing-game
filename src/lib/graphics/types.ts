@@ -1,5 +1,6 @@
 import type { WGSLCode } from './wgsl';
 
 export interface ShapeKind {
-  shapeCode: WGSLCode;
+  readonly shapeCode: WGSLCode;
+  readonly materialCode: WGSLCode;
 }
