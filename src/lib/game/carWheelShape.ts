@@ -7,23 +7,23 @@ import { op, sdf, snippets } from '../graphics/sdf';
 const shapeCode = wgsl`
   ${snippets.applyTransform}
 
-  let pos2 = ${op.revolveX}(pos, 0.5);
+  let pos2 = ${op.revolveX}(pos, 0.25);
 
   return ${op.union}(
     ${op.inflate}(
-      ${sdf.box2}(pos2, vec2f(0.2)),
-      0.2 // roundness
+      ${sdf.box2}(pos2, vec2f(0.1)),
+      0.1 // roundness
     ),
     // union with
     ${op.union}(
       ${op.inflate}(
-        ${sdf.box2}(pos2 + vec2f(0.25, -0.25), vec2f(0.2, 0.05)),
-        0.05
+        ${sdf.box2}(pos2 + vec2f(0.125, -0.125), vec2f(0.1, 0.025)),
+        0.025
       ),
       // union with
       ${op.inflate}(
-        ${sdf.box2}(pos2 + vec2f(0.22, -0.04), vec2f(0.2, 0.01)),
-        0.02
+        ${sdf.box2}(pos2 + vec2f(0.11, -0.02), vec2f(0.1, 0.005)),
+        0.01
       )
     )
   );

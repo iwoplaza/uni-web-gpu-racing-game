@@ -35,13 +35,13 @@ class CarObject implements GameObject {
     this.turnVelocity = entity.turnVelocity;
 
     this.wheels = [
-      new CarWheelShape([-2.2, 1, 3.5]), // front-left
-      new CarWheelShape([2.2, 1, 3.5]), // front-right
-      new CarWheelShape([-2.2, 1, -3.5]), // back-left
-      new CarWheelShape([2.2, 1, -3.5]) // back-right
+      new CarWheelShape([-1, 0.5, 1.5]), // front-left
+      new CarWheelShape([1, 0.5, 1.5]), // front-right
+      new CarWheelShape([-1, 0.5, -1.5]), // back-left
+      new CarWheelShape([1, 0.5, -1.5]) // back-right
     ];
 
-    this.body = new CarBodyShape([0, 1, 0]);
+    this.body = new CarBodyShape([0, 0.5, 0]);
   }
 
   dispose(sceneInfo: SceneInfo) {

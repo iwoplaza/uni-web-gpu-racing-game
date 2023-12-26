@@ -125,10 +125,13 @@ class WGSLParam {
   constructor(public readonly description: string) {}
 }
 
-type Segment = string | WGSLToken | WGSLParam | WGSLCode | WGSLFunction;
+export type WGSLSegment = string | WGSLToken | WGSLParam | WGSLCode | WGSLFunction;
 
-export function code(strings: TemplateStringsArray, ...params: (Segment | Segment[])[]): WGSLCode {
-  const segments: Segment[] = [];
+export function code(
+  strings: TemplateStringsArray,
+  ...params: (WGSLSegment | WGSLSegment[])[]
+): WGSLCode {
+  const segments: WGSLSegment[] = [];
   for (let i = 0; i < strings.length; ++i) {
     segments.push(strings[i]);
     if (i < params.length) {
@@ -145,7 +148,7 @@ export function code(strings: TemplateStringsArray, ...params: (Segment | Segmen
 }
 
 function fn(prefix: string = 'function') {
-  return (strings: TemplateStringsArray, ...params: Segment[]): WGSLFunction => {
+  return (strings: TemplateStringsArray, ...params: WGSLSegment[]): WGSLFunction => {
     return new WGSLFunction(prefix, code(strings, ...params));
   };
 }

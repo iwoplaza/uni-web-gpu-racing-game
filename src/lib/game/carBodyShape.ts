@@ -8,9 +8,9 @@ const shapeCode = wgsl`
   ${snippets.applyTransform}
 
   return ${op.union}(
-    ${sdf.box3}(pos, vec3f(2, 0.5, 3)),
+    ${sdf.box3}(pos, vec3f(0.8, 0.3, 2)),
     ${op.inflate}(
-      ${sdf.box3}(pos + vec3f(0, 0, -5.5), vec3f(2, 0.07, .3)),
+      ${sdf.box3}(pos + vec3f(0, 0.2, -3.5), vec3f(1, 0.07, .3)),
       0.5
     ),
   );

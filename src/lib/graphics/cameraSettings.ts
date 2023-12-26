@@ -2,8 +2,8 @@ import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 
 class CameraSettings {
   private _parentMatrix = mat4.identity();
-  public origin: [number, number, number] = [0, 4, 0];
-  public distance: number = 9;
+  public origin: [number, number, number] = [0, 2, 0];
+  public distance: number = 5;
 
   private _gpuBuffer: GPUBuffer | undefined = undefined;
 

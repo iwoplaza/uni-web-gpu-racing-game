@@ -12,8 +12,10 @@ import { ClientSocket, serverAddress } from '../clientSocket';
 import { InputHandler } from '../inputHandler';
 import type GameObject from '../gameObject';
 import CarObject from './carObject';
+import RoadObject from './roadObject';
 import { CarBodyShape } from './carBodyShape';
 import { CarWheelShape } from './carWheelShape';
+import { RoadSegmentShape } from './roadSegmentShape';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -60,17 +62,22 @@ class CarGame implements Game {
   private previouslySentState: Pick<PlayerEntity, (typeof ClientUpdateFields)[number]> | null =
     null;
 
+  private roadObject = new RoadObject();
+
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
     this.clientSocket = new ClientSocket(this.gameInstance, endpoint, (socketId) => {
       this.myId = socketId;
       this.gameInstance.localPlayerId = socketId;
     });
+
+    this.objects.push(this.roadObject);
   }
 
   init(sceneInfo: SceneInfo): void {
     sceneInfo.registerShapeKind(CarBodyShape);
     sceneInfo.registerShapeKind(CarWheelShape);
+    sceneInfo.registerShapeKind(RoadSegmentShape);
 
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {
