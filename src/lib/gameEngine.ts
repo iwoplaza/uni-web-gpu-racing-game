@@ -86,8 +86,9 @@ class GameEngine {
       alphaMode: 'premultiplied'
     });
 
-    this.sceneInfo.init(device);
+    this.game.init(this.sceneInfo);
 
+    this.sceneInfo.init(device);
     this.renderer = new SceneRenderer(
       device,
       canvasCtx,
@@ -96,16 +97,14 @@ class GameEngine {
       this.sceneInfo
     );
 
+    this.initState = GameEngineInitState.READY;
+
     const animationLoop = () => {
       animationFrameHandle = requestAnimationFrame(animationLoop);
       this.renderFrame(device);
     };
     let animationFrameHandle = requestAnimationFrame(animationLoop);
     this.stopAnimationLoop = () => cancelAnimationFrame(animationFrameHandle);
-
-    this.initState = GameEngineInitState.READY;
-
-    this.game.init(this.sceneInfo);
   }
 
   dispose() {

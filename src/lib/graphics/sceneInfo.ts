@@ -4,6 +4,8 @@ import { type Parsed, BufferWriter, MaxValue } from 'typed-binary';
 import { roundUp } from '$lib/mathUtils';
 import * as std140 from './std140';
 import CameraSettings from './cameraSettings';
+import type { ShapeKind } from './types';
+import wgsl, { WGSLToken } from './wgsl';
 
 type SceneInfoStruct = Parsed<typeof SceneInfoStruct>;
 const SceneInfoStruct = std140.object({
@@ -12,17 +14,6 @@ const SceneInfoStruct = std140.object({
 const SceneInfoStructSize = SceneInfoStruct.measure(MaxValue).size;
 
 const MaxInstances = 64;
-
-export enum ShapeKind {
-  SPHERE,
-  CAR_WHEEL,
-  CAR_BODY
-}
-
-export const shapeKindDefinitions = Object.entries(ShapeKind)
-  .filter(([key]) => Number.isNaN(Number.parseInt(key)))
-  .map(([key, value]) => `const SHAPE_${key} = ${value};\n`)
-  .join('');
 
 export type ShapeStruct = Parsed<typeof ShapeStruct>;
 export const ShapeStruct = std140.object({
@@ -34,16 +25,22 @@ export const ShapeStruct = std140.object({
 });
 const ShapeStructSize = ShapeStruct.measure(MaxValue).size;
 
+export type ShapeData = Omit<ShapeStruct, 'kind'>;
+
 type ShapesArray = Parsed<typeof ShapesArray>;
 const ShapesArray = std140.arrayOf(ShapeStruct, MaxInstances);
 const ShapesArraySize = ShapesArray.measure(MaxValue).size;
 
 export interface Shape {
-  readonly data: ShapeStruct;
+  readonly kind: ShapeKind;
+  readonly data: Readonly<ShapeData>;
 }
 
 class SceneInfo {
   private _device: GPUDevice | undefined = undefined;
+
+  private shapeDefinitions: { kind: ShapeKind; token: WGSLToken; id: number }[] = [];
+  private kindToIdMap = new Map<ShapeKind, number>();
 
   private hostSceneInfo: SceneInfoStruct = {
     numOfShapes: 0
@@ -76,6 +73,13 @@ class SceneInfo {
   _gpuSceneShapesBuffer: GPUBuffer | undefined;
 
   public camera = new CameraSettings();
+
+  registerShapeKind(kind: ShapeKind) {
+    const def = { kind, token: new WGSLToken('shape'), id: this.shapeDefinitions.length };
+
+    this.shapeDefinitions.push(def);
+    this.kindToIdMap.set(kind, def.id);
+  }
 
   init(device: GPUDevice) {
     this._device = device;
@@ -177,7 +181,12 @@ class SceneInfo {
       this.instancesArray.push(instance);
     }
 
-    this.writeDataToIdx(idx, instance.data);
+    const id = this.kindToIdMap.get(instance.kind);
+    if (id === undefined) {
+      throw new Error(`Cannot render shape that has not been registered before.`);
+    }
+
+    this.writeDataToIdx(idx, { kind: id, ...instance.data });
   }
 
   deleteInstance(instance: Shape) {
@@ -200,7 +209,35 @@ class SceneInfo {
     // uploading new instance count to the gpu
     this.writeSceneInfo();
 
-    this.writeDataToIdx(idx, lastInstance.data);
+    const id = this.kindToIdMap.get(lastInstance.kind)!;
+    this.writeDataToIdx(idx, { kind: id, ...lastInstance.data });
+  }
+
+  get shapeDefinitionsCode() {
+    return wgsl`
+// enum
+${this.shapeDefinitions.map((def) => wgsl`const ${def.token}_id = ${String(def.id)};\n`)}
+
+// functions
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+fn ${def.token}(in_pos: vec3f, shape_idx: u32) -> f32 {
+  var pos = in_pos;
+  ${def.kind.shapeCode}
+}
+`
+)}`;
+  }
+
+  get sceneResolverCode() {
+    return wgsl`
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+if (kind == ${String(def.id)}) {
+  return ${def.token}(pos, idx);
+}
+`
+)}`;
   }
 }
 

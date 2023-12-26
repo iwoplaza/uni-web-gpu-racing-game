@@ -1,15 +1,12 @@
 import _ from 'lodash';
-import { get } from 'svelte/store';
 import { mat4, utils, vec3 } from 'wgpu-matrix';
 
-import type { GameEngineCtx } from './gameEngineCtx';
-import type GameObject from './gameObject';
-import { CarWheelShape } from './graphics/carWheelShape';
-import { CarBodyShape } from './graphics/carBodyShape';
-import type { Entity, PlayerEntity } from './common/systems';
-import type SceneInfo from './graphics/sceneInfo';
-
-import { speedCheat } from './clientSocket';
+import type { GameEngineCtx } from '../gameEngineCtx';
+import type { Entity, PlayerEntity } from '../common/systems';
+import type SceneInfo from '../graphics/sceneInfo';
+import type GameObject from '../gameObject';
+import { CarWheelShape } from './carWheelShape';
+import { CarBodyShape } from './carBodyShape';
 
 const WHEEL_TURN_VELOCITY_TO_ANGLE = 10.0;
 
@@ -79,8 +76,6 @@ class CarObject implements GameObject {
 
   onTick(): void {
     // Sending inputs every tick
-    this.entity.maxForwardVelocity = 0.05 + 0.05 * get(speedCheat);
-
     vec3.copy(this.position, this.prevPosition);
     vec3.copy(this.entity.position, this.position);
 

@@ -1,4 +1,4 @@
-import type CarObject from './carObject';
+import type CarObject from './game/carObject';
 
 export class InputHandler {
   public car: CarObject | null = null;

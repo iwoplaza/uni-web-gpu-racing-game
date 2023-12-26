@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  import { connect, createCarGame, disconnect, disposeCarGame } from '$lib/carGame';
+  import { connect, createCarGame, disconnect, disposeCarGame } from '$lib/game/carGame';
   import { packetsReceived, packetsSent, ping } from '$lib/common/ping';
   import { jitter, latency, maxBitrate, packetsLost, serverAddress } from '$lib/clientSocket';
 

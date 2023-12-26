@@ -1,17 +1,19 @@
 import _ from 'lodash';
 import { get } from 'svelte/store';
 
-import GameEngine from './gameEngine';
-import type { Game } from './gameEngine';
-import type { GameEngineCtx } from './gameEngineCtx';
-import type SceneInfo from './graphics/sceneInfo';
-import GameInstance from './common/gameInstance';
-import type { PlayerEntity } from './common/systems';
-import { ClientTickInterval, ClientUpdateFields } from './common/constants';
-import { ClientSocket, serverAddress } from './clientSocket';
-import { InputHandler } from './inputHandler';
-import type GameObject from './gameObject';
+import GameEngine from '../gameEngine';
+import type { Game } from '../gameEngine';
+import type { GameEngineCtx } from '../gameEngineCtx';
+import type SceneInfo from '../graphics/sceneInfo';
+import GameInstance from '../common/gameInstance';
+import type { PlayerEntity } from '../common/systems';
+import { ClientTickInterval, ClientUpdateFields } from '../common/constants';
+import { ClientSocket, serverAddress } from '../clientSocket';
+import { InputHandler } from '../inputHandler';
+import type GameObject from '../gameObject';
 import CarObject from './carObject';
+import { CarBodyShape } from './carBodyShape';
+import { CarWheelShape } from './carWheelShape';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -67,6 +69,9 @@ class CarGame implements Game {
   }
 
   init(sceneInfo: SceneInfo): void {
+    sceneInfo.registerShapeKind(CarBodyShape);
+    sceneInfo.registerShapeKind(CarWheelShape);
+
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {
         console.log(`New player joined!: ${e.playerId}`);

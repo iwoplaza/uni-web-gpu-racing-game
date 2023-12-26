@@ -1,11 +1,26 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 
-import { ShapeKind, type Shape, type ShapeStruct } from './sceneInfo';
+import type { Shape, ShapeData } from '../graphics/sceneInfo';
+import wgsl from '../graphics/wgsl';
+import { op, sdf, snippets } from '../graphics/sdf';
 
-export class CarWheelShape implements Shape {
+const shapeCode = wgsl`
+  ${snippets.applyTransform}
+
+  return ${op.union}(
+    ${sdf.box3}(pos, vec3f(2, 0.5, 3)),
+    ${op.inflate}(
+      ${sdf.box3}(pos + vec3f(0, 0, -5.5), vec3f(2, 0.07, .3)),
+      0.5
+    ),
+  );
+`;
+
+export class CarBodyShape implements Shape {
+  kind = CarBodyShape;
+
   _parentMatrix = [...mat4.identity().values()];
   position = [0, 0, 0];
-  turnAngle: number = 0;
 
   constructor(pos: [number, number, number]) {
     this.position = pos;
@@ -15,20 +30,22 @@ export class CarWheelShape implements Shape {
     mat4.copy(value, this._parentMatrix);
   }
 
-  get data(): Readonly<ShapeStruct> {
+  get data(): Readonly<ShapeData> {
     const transform = mat4.identity();
-    mat4.rotateY(transform, -this.turnAngle, transform);
     mat4.scale(transform, vec3.fromValues(1, 1, 1), transform);
     mat4.translate(transform, vec3.negate(this.position), transform);
 
     mat4.mul(transform, this._parentMatrix, transform);
 
     return {
-      kind: ShapeKind.CAR_WHEEL,
-      materialIdx: 0,
+      materialIdx: 1,
       extra1: 0,
       extra2: 0,
       transform: [...transform.values()]
     };
+  }
+
+  static get shapeCode() {
+    return shapeCode;
   }
 }
