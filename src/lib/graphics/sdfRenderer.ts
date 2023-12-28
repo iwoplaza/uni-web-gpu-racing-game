@@ -16,8 +16,13 @@ struct Material {
   emissive: bool,
 }
 
-struct EnvContext {
+struct ShapeContext {
+  view_dir: vec3f,
+}
+
+struct MatContext {
   pos: vec3f,
+  view_dir: vec3f,
   normal: vec3f,
   attenuation: f32,
   ao: f32,
@@ -38,11 +43,11 @@ const BLOCK_SIZE = {{BLOCK_SIZE}};
 const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
-const MAX_STEPS = 400;
-const SURFACE_DIST = 0.001;
+const MAX_STEPS = 200;
+const SURFACE_DIST = 0.01;
 const SUPER_SAMPLES = 1;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
-const FAR = 100.;
+const FAR = 10000.;
 
 const MAX_INSTANCES = 64;
 
@@ -69,7 +74,7 @@ fn convert_rgb_to_y(rgb: vec3f) -> f32 {
 
 ${sceneInfo.shapeDefinitionsCode}
 
-fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
+fn sdf_scene_shape(pos: vec3f, ctx: ptr<function, ShapeContext>, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
 
   ${sceneInfo.sceneResolverCode}
@@ -77,38 +82,41 @@ fn sdf_scene_shape(pos: vec3f, idx: u32) -> f32 {
   return FAR;
 }
 
-fn sdf_world(pos: vec3f) -> f32 {
+fn sdf_world(pos: vec3f, ctx: ptr<function, ShapeContext>) -> f32 {
   var min_dist = FAR;
 
   let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
   for (var idx = 0u; idx < instances; idx++) {
-    min_dist = min(sdf_scene_shape(pos, idx), min_dist);
+    min_dist = min(sdf_scene_shape(pos, ctx, idx), min_dist);
   }
 
   return min_dist;
 }
 
 fn sky_color(dir: vec3f) -> vec3f {
-  let t = dir.y / 2. + 0.5;
-  let c = ${checkerboard}(dir.xy, 30.);
+  let t = max(0., dir.y);
+  // let c = ${checkerboard}(dir.xy, 30.);
 
   return mix(
-    vec3f(0.1, 0.15, 0.5),
+    vec3f(0.8, 0.7, 0.5),
     vec3f(0.7, 0.9, 1),
     t,
-  ) * mix(1., 0., c);
+  );
 }
 
-fn material_world(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) {
+fn material_world(ctx: ptr<function, MatContext>, out: ptr<function, Material>) {
   (*out).emissive = false;
   (*out).color = vec3f(0., 0., 0.);
 
   var shape_idx = -1;
   var min_dist = FAR;
 
+  var shape_ctx: ShapeContext;
+  shape_ctx.view_dir = (*ctx).view_dir;
+
   let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
   for (var idx = 0u; idx < instances; idx++) {
-    let obj_dist = sdf_scene_shape((*ctx).pos, idx);
+    let obj_dist = sdf_scene_shape((*ctx).pos, &shape_ctx, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
       shape_idx = i32(idx);
@@ -122,16 +130,16 @@ fn material_world(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) 
   }
 }
 
-fn world_normals(point: vec3f) -> vec3f {
+fn world_normals(point: vec3f, ctx: ptr<function, ShapeContext>) -> vec3f {
   let epsilon = SURFACE_DIST * 0.5; // arbitrary - should be smaller than any surface detail in your distance function, but not so small as to get lost in float precision
   let offX = vec3f(point.x + epsilon, point.y, point.z);
   let offY = vec3f(point.x, point.y + epsilon, point.z);
   let offZ = vec3f(point.x, point.y, point.z + epsilon);
   
-  let centerDistance = sdf_world(point);
-  let xDistance = sdf_world(offX);
-  let yDistance = sdf_world(offY);
-  let zDistance = sdf_world(offZ);
+  let centerDistance = sdf_world(point, ctx);
+  let xDistance = sdf_world(offX, ctx);
+  let yDistance = sdf_world(offY, ctx);
+  let zDistance = sdf_world(offZ, ctx);
 
   return vec3f(
     (xDistance - centerDistance),
@@ -167,9 +175,12 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   var step = 0u;
   var progress = 0.;
 
+  var shape_ctx: ShapeContext;
+  shape_ctx.view_dir = ray_dir;
+
   for (; step <= MAX_STEPS; step++) {
     pos = ray_pos + ray_dir * progress;
-    min_dist = sdf_world(pos);
+    min_dist = sdf_world(pos, &shape_ctx);
 
     // Inside volume?
     if (min_dist <= 0. && prev_dist > 0.) {
@@ -241,7 +252,9 @@ fn main_frag(
         material.color = sky_color(ray_dir);
       }
       else {
-        let normal = world_normals(march_result.position);
+        var shape_ctx: ShapeContext;
+        shape_ctx.view_dir = ray_dir;
+        let normal = world_normals(march_result.position, &shape_ctx);
         // approximating ambient occlusion
         // var ao = max(0, f32(march_result.steps));
         // ao = ao / (1 + ao);
@@ -254,12 +267,13 @@ fn main_frag(
         var attenuation = select(0., max(0., dot(normal, ${SunDir})), sun_march_result.steps > MAX_STEPS);
         // var attenuation = f32(sun_march_result.steps / 100);
 
-        var env_ctx: EnvContext;
-        env_ctx.pos = march_result.position;
-        env_ctx.normal = normal;
-        env_ctx.attenuation = attenuation;
-        env_ctx.ao = ao;
-        material_world(&env_ctx, &material);
+        var mat_ctx: MatContext;
+        mat_ctx.pos = march_result.position;
+        mat_ctx.view_dir = ray_dir;
+        mat_ctx.normal = normal;
+        mat_ctx.attenuation = attenuation;
+        mat_ctx.ao = ao;
+        material_world(&mat_ctx, &material);
       }
 
       acc += material.color;

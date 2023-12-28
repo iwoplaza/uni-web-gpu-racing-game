@@ -11,8 +11,6 @@ class RoadObject implements GameObject {
   private dirty = true;
 
   constructor(roadPoints: RoadPoint[]) {
-    console.log(roadPoints);
-
     for (let i = 0; i < roadPoints.length - 1; i++) {
       const point = roadPoints[i];
       const nextPoint = roadPoints[i + 1];
@@ -23,6 +21,11 @@ class RoadObject implements GameObject {
       const d = nextPoint.pos;
 
       this.segmentShapes.push(new RoadSegmentShape([a, b, c, d]));
+    }
+
+    // Chaining segments with hints
+    for (let i = 0; i < this.segmentShapes.length; ++i) {
+      this.segmentShapes[i].nextHint = this.segmentShapes[(i + 1) % this.segmentShapes.length];
     }
   }
 

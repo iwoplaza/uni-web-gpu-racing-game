@@ -2,7 +2,7 @@ import wgsl from './wgsl';
 
 export const normalTest = wgsl.fn(
   'mat_normal_test'
-)`(ctx: ptr<function, EnvContext>, out: ptr<function, Material>) {
+)`(ctx: ptr<function, MatContext>, out: ptr<function, Material>) {
   let n = (*ctx).normal;
   (*out).color = n + vec3f(.5, .5, .5);
 }`;
@@ -13,7 +13,7 @@ export const LambertAmbientColor = wgsl.param('Lambert Ambient Color', 'vec3f(0.
 
 export const lambert = wgsl.fn(
   'mat_lambert'
-)`(ctx: ptr<function, EnvContext>, albedo: vec3f, out: ptr<function, Material>) {
+)`(ctx: ptr<function, MatContext>, albedo: vec3f, out: ptr<function, Material>) {
   (*out).color = (${LambertAmbientColor} + albedo * ${LambertSunColor} * (*ctx).attenuation) * (*ctx).ao;
 }`;
 

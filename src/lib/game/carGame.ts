@@ -17,6 +17,7 @@ import { CarBodyShape } from './carBodyShape';
 import { CarWheelShape } from './carWheelShape';
 import { RoadSegmentShape } from './roadSegmentShape';
 import StaticEnvironmentShape from './staticEnvironmentShape';
+import CameraController from './cameraController';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -64,6 +65,7 @@ class CarGame implements Game {
     null;
 
   private staticEnvironmentShape = new StaticEnvironmentShape();
+  private cameraController: CameraController | null = null;
   private roadObject: RoadObject;
 
   constructor(endpoint: string) {
@@ -87,6 +89,9 @@ class CarGame implements Game {
     sceneInfo.registerShapeKind(StaticEnvironmentShape);
 
     sceneInfo.uploadInstance(this.staticEnvironmentShape);
+
+    this.cameraController = new CameraController(sceneInfo.camera);
+    this.inputHandler.cameraController = this.cameraController;
 
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {
@@ -155,9 +160,7 @@ class CarGame implements Game {
   }
 
   onRender(ctx: GameEngineCtx) {
-    if (this.myCar) {
-      ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix(ctx.pt);
-    }
+    this.cameraController?.onRender(ctx, this.myCar);
 
     for (const obj of this.objects) {
       obj.render(ctx);

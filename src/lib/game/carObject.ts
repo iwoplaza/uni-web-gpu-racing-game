@@ -62,6 +62,19 @@ class CarObject implements GameObject {
     return worldMatrix;
   }
 
+  cameraMountMatrix(pt: number) {
+    const tPos = vec3.lerp(this.prevPosition, this.position, pt);
+    const tYaw = utils.lerp(this.prevYawAngle, this.yawAngle, pt);
+    const tYawVel = utils.lerp(this.prevTurnVelocity, this.turnVelocity, pt);
+
+    const worldMatrix = mat4.identity();
+    mat4.rotateY(worldMatrix, -tYaw, worldMatrix);
+    mat4.rotateY(worldMatrix, tYawVel, worldMatrix);
+    mat4.translate(worldMatrix, vec3.negate(tPos), worldMatrix);
+
+    return worldMatrix;
+  }
+
   /**
    * @returns true if the same within the given keys
    */

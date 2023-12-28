@@ -39,6 +39,20 @@ class WGSLParam {
   constructor(public readonly description: string, public readonly defaultValue?: WGSLParamValue) {}
 }
 
+/**
+ * Creates a constant is computed at shader initialization according
+ * to the passed in expression.
+ */
+class WGSLConstant {
+  public token: WGSLToken;
+  public declaration: WGSLCode;
+
+  constructor(expr: WGSLSegment, public readonly description: string) {
+    this.token = new WGSLToken(description.replaceAll(/\s/g, '_'));
+    this.declaration = code`const ${this.token} = ${expr};`;
+  }
+}
+
 class WGSLFunction {
   private nameToken: WGSLToken;
   public declaration: WGSLCode;
@@ -73,6 +87,11 @@ export class WGSLCode {
     for (const s of this.segments) {
       if (s instanceof WGSLCode) {
         for (const dep of s.allDependencies()) {
+          addUnique(list, dep);
+        }
+      } else if (s instanceof WGSLConstant) {
+        addUnique(list, s.declaration);
+        for (const dep of s.declaration.allDependencies()) {
           addUnique(list, dep);
         }
       } else if (s instanceof WGSLFunction) {
@@ -114,6 +133,9 @@ export class WGSLCode {
         case s instanceof WGSLFunction:
           code += s.resolve();
           break;
+        case s instanceof WGSLConstant:
+          code += runtime.uniqueIdFor(s.token);
+          break;
         case s instanceof WGSLToken:
           code += runtime.uniqueIdFor(s);
           break;
@@ -126,7 +148,7 @@ export class WGSLCode {
   }
 }
 
-export type WGSLSegment = string | WGSLToken | WGSLParam | WGSLCode | WGSLFunction;
+export type WGSLSegment = string | WGSLToken | WGSLParam | WGSLConstant | WGSLCode | WGSLFunction;
 
 export function code(
   strings: TemplateStringsArray,
@@ -166,10 +188,15 @@ function param(description: string, defaultValue?: WGSLParamValue): WGSLParam {
   return new WGSLParam(description, defaultValue);
 }
 
+function constant(expr: WGSLSegment, description?: string): WGSLConstant {
+  return new WGSLConstant(expr, description ?? 'constant');
+}
+
 export default Object.assign(code, {
   code,
   fn,
   token,
-  param
+  param,
+  constant
   // require
 });

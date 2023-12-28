@@ -221,7 +221,7 @@ ${this.shapeDefinitions.map((def) => wgsl`const ${def.token}_id = ${String(def.i
 // sdf functions
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-    fn sdf_${def.token}(in_pos: vec3f, shape_idx: u32) -> f32 {
+    fn sdf_${def.token}(in_pos: vec3f, ctx: ptr<function, ShapeContext>, shape_idx: u32) -> f32 {
       var pos = in_pos;
       ${def.kind.shapeCode}
     }`
@@ -230,7 +230,7 @@ ${this.shapeDefinitions.map(
 // material functions
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-    fn mat_${def.token}(ctx: ptr<function, EnvContext>, shape_idx: u32, out: ptr<function, Material>) {
+    fn mat_${def.token}(ctx: ptr<function, MatContext>, shape_idx: u32, out: ptr<function, Material>) {
       var pos = (*ctx).pos;
       ${def.kind.materialCode}
     }`
@@ -245,7 +245,7 @@ ${this.shapeDefinitions.map(
 ${this.shapeDefinitions.map(
   (def) => wgsl`
     if (kind == ${String(def.id)}) {
-      return sdf_${def.token}(pos, idx);
+      return sdf_${def.token}(pos, ctx, idx);
     }`
 )}`;
   }
