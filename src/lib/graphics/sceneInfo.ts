@@ -18,7 +18,7 @@ const MaxInstances = 64;
 export type ShapeStruct = Parsed<typeof ShapeStruct>;
 export const ShapeStruct = std140.object({
   kind: std140.u32,
-  materialIdx: std140.u32,
+  flags: std140.u32,
   extra1: std140.u32, // general purpose data
   extra2: std140.u32, // general purpose data
   transform: std140.mat4f
@@ -48,9 +48,9 @@ class SceneInfo {
 
   private hostShapes: ShapesArray = new Array(MaxInstances).fill(null).map(() => ({
     kind: 0,
+    flags: 0,
     extra1: 0,
     extra2: 0,
-    materialIdx: 0,
     transform: [...mat4.identity().values()]
   }));
 

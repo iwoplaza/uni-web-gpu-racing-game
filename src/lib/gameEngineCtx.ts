@@ -1,4 +1,5 @@
 import type SceneInfo from './graphics/sceneInfo';
+import type { WGSLRuntime } from './graphics/wgsl';
 
 export interface GameEngineCtx {
   /**
@@ -15,4 +16,6 @@ export interface GameEngineCtx {
    * Useful for instancing new shapes
    */
   readonly sceneInfo: SceneInfo;
+
+  readonly runtime: WGSLRuntime;
 }

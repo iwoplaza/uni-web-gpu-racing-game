@@ -8,20 +8,20 @@ import {
   type IRefResolver,
   type ISerialOutput,
   type ISerialInput,
+  type IUnstableSchema,
   type ISchema,
-  type IStableSchema,
   type IMeasurer,
   Measurer
 } from 'typed-binary';
 import * as TB from 'typed-binary';
 
 export class AlignedSchema<T> extends Schema<T> {
-  private innerSchema: IStableSchema<T>;
+  private innerSchema: ISchema<T>;
   private readonly bitMask: number;
   private readonly inverseBitMask: number;
 
   constructor(
-    private readonly _innerUnstableSchema: ISchema<T>,
+    private readonly _innerUnstableSchema: IUnstableSchema<T>,
     /**
      * Has to be power of 2
      */
@@ -31,7 +31,7 @@ export class AlignedSchema<T> extends Schema<T> {
 
     // In case this isn't part of a keyed chain,
     // let's assume the inner type is stable.
-    this.innerSchema = _innerUnstableSchema as IStableSchema<T>;
+    this.innerSchema = _innerUnstableSchema as ISchema<T>;
 
     this.bitMask = baseAlignment - 1;
     this.inverseBitMask = ~this.bitMask;
@@ -88,12 +88,5 @@ export const object = <P extends Record<string, unknown> = Record<string, never>
 };
 
 export const arrayOf = <T extends AlignedSchema<T['_infered']>>(elementType: T, size: number) => {
-  const bitMask = 0xf; // 16 bytes
-  const inverseBitMask = ~bitMask;
-  const baseAlignment =
-    (elementType.baseAlignment & bitMask) === 0
-      ? elementType.baseAlignment
-      : (elementType.baseAlignment & inverseBitMask) + 16;
-
-  return new AlignedSchema(TB.tupleOf(elementType, size), baseAlignment);
+  return new AlignedSchema(TB.tupleOf(elementType, size), elementType.baseAlignment);
 };

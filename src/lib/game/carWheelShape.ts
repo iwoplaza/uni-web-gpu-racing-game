@@ -29,7 +29,7 @@ export class CarWheelShape implements Shape {
     mat4.mul(transform, this._parentMatrix, transform);
 
     return {
-      materialIdx: 0,
+      flags: 0,
       extra1: 0,
       extra2: 0,
       transform: [...transform.values()]

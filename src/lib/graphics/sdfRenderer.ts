@@ -3,8 +3,9 @@ import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
 import type GBuffer from './gBuffer';
 import type SceneInfo from './sceneInfo';
-import wgsl from './wgsl';
+import wgsl, { resolveProgram } from './wgsl';
 import { SunDir, checkerboard } from './wgslMaterial';
+import { randOnHemisphere } from './wgslRandom';
 
 const viewportWidthParam = wgsl.param('Viewport Width');
 const viewportHeightParam = wgsl.param('Viewport Height');
@@ -43,11 +44,11 @@ const BLOCK_SIZE = {{BLOCK_SIZE}};
 const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
-const MAX_STEPS = 200;
+const MAX_STEPS = 500;
 const SURFACE_DIST = 0.01;
 const SUPER_SAMPLES = 1;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
-const FAR = 10000.;
+const FAR = 1000.;
 
 const MAX_INSTANCES = 64;
 
@@ -167,7 +168,7 @@ fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<funct
   *out_dir = normalize((view_matrix * dir).xyz);
 }
 
-fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
+fn march(ray_pos: vec3f, ray_dir: vec3f, limit: u32, out: ptr<function, MarchResult>) {
   var pos = ray_pos;
   var prev_dist = -1.;
   var min_dist = FAR;
@@ -178,12 +179,12 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, out: ptr<function, MarchResult>) {
   var shape_ctx: ShapeContext;
   shape_ctx.view_dir = ray_dir;
 
-  for (; step <= MAX_STEPS; step++) {
+  for (; step <= limit; step++) {
     pos = ray_pos + ray_dir * progress;
     min_dist = sdf_world(pos, &shape_ctx);
 
     // Inside volume?
-    if (min_dist <= 0. && prev_dist > 0.) {
+    if (min_dist <= 0.) {
       // No need to check more objects.
       break;
     }
@@ -229,6 +230,7 @@ fn main_frag(
 
   var acc = vec3f(0., 0., 0.);
   var march_result: MarchResult;
+  var ao_march_result: MarchResult;
   var sun_march_result: MarchResult;
   var ray_pos = vec3f(0, 0, 0);
   var ray_dir = vec3f(0, 0, 1);
@@ -243,7 +245,7 @@ fn main_frag(
       construct_ray(vec2f(GlobalInvocationID.xy) + offset, &ray_pos, &ray_dir);
       
       var sub_acc = vec3f(1., 1., 1.);
-      march(ray_pos, ray_dir, &march_result);
+      march(ray_pos, ray_dir, MAX_STEPS, &march_result);
 
       var material: Material;
 
@@ -259,10 +261,18 @@ fn main_frag(
         // var ao = max(0, f32(march_result.steps));
         // ao = ao / (1 + ao);
         // ao = 1 - pow(ao, 20);
-        let ao = 1.;
+        // let ao = 1.;
+        // new ambient occlusion algorithm
+        var ao = 1.;
+        for (var aoi = 0; aoi < 3; aoi += 1) {
+          let dir = ${randOnHemisphere}(&seed, normal);
+          march(march_result.position, dir, 30, &ao_march_result);
+          ao += distance(ao_march_result.position, march_result.position);
+        }
+        ao = ao / (1 + ao);
 
         // Marching towards the sun
-        march(march_result.position + ${SunDir} * 0.01, ${SunDir}, &sun_march_result);
+        march(march_result.position + ${SunDir} * 0.01, ${SunDir}, MAX_STEPS, &sun_march_result);
 
         var attenuation = select(0., max(0., dot(normal, ${SunDir})), sun_march_result.steps > MAX_STEPS);
         // var attenuation = f32(sun_march_result.steps / 100);
@@ -417,17 +427,29 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
     ]
   });
 
-  const shaderCode = makeShaderCode(sceneInfo);
-  const code = shaderCode.resolve([
-    [viewportWidthParam, mainPassSize[0]],
-    [viewportHeightParam, mainPassSize[1]],
-    [outputFormatParam, 'rgba8unorm']
-  ]);
+  const { runtime, code, bindGroup, bindGroupLayout } = resolveProgram(
+    device,
+    makeShaderCode(sceneInfo),
+    {
+      bindingGroup: 3,
+      shaderStage: GPUShaderStage.COMPUTE,
+      params: [
+        [viewportWidthParam, mainPassSize[0]],
+        [viewportHeightParam, mainPassSize[1]],
+        [outputFormatParam, 'rgba8unorm']
+      ]
+    }
+  );
 
   const mainPipeline = device.createComputePipeline({
     label: `${LABEL} - Main Pipeline`,
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [sharedBindGroupLayout, mainBindGroupLayout, sceneBindGroupLayout]
+      bindGroupLayouts: [
+        sharedBindGroupLayout,
+        mainBindGroupLayout,
+        sceneBindGroupLayout,
+        bindGroupLayout
+      ]
     }),
     compute: {
       module: device.createShaderModule({
@@ -442,6 +464,8 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   });
 
   return {
+    runtime,
+
     perform(commandEncoder: GPUCommandEncoder) {
       timeInfoBuffer.update();
       sceneInfo.camera.queueWrite(device);
@@ -452,6 +476,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
       mainPass.setBindGroup(0, sharedBindGroup);
       mainPass.setBindGroup(1, mainBindGroup);
       mainPass.setBindGroup(2, sceneBindGroup);
+      mainPass.setBindGroup(3, bindGroup);
       mainPass.dispatchWorkgroups(
         Math.ceil(mainPassSize[0] / blockDim),
         Math.ceil(mainPassSize[1] / blockDim),

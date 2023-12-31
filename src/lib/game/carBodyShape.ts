@@ -61,7 +61,7 @@ export class CarBodyShape implements Shape {
     mat4.mul(transform, this._parentMatrix, transform);
 
     return {
-      materialIdx: 1,
+      flags: 0,
       extra1: 0,
       extra2: 0,
       transform: [...transform.values()]

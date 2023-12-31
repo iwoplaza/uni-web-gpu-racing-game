@@ -1,6 +1,7 @@
 import { SceneRenderer } from './graphics';
 import type { GameEngineCtx } from './gameEngineCtx';
 import SceneInfo from './graphics/sceneInfo';
+import type { WGSLRuntime } from './graphics/wgsl';
 
 export interface Game {
   init(sceneInfo: SceneInfo): void;
@@ -14,6 +15,8 @@ class GameEngineCtxImpl implements GameEngineCtx {
   lastTime: number;
   deltaTime: number = 0;
   pt: number = 0;
+
+  runtime!: WGSLRuntime;
 
   constructor(public readonly sceneInfo: SceneInfo) {
     this.lastTime = Date.now();
@@ -96,6 +99,8 @@ class GameEngine {
       presentationFormat,
       this.sceneInfo
     );
+    this.renderCtx.runtime = this.renderer.sdfRenderer.runtime;
+    this.tickCtx.runtime = this.renderer.sdfRenderer.runtime;
 
     this.initState = GameEngineInitState.READY;
 

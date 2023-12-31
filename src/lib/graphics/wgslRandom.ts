@@ -10,15 +10,15 @@ export const randf = wgsl.fn('randf')`(seed: ptr<function, u32>) -> f32 {
 
 export const randInUnitCube = wgsl.fn('rand_in_unit_cube')`(seed: ptr<function, u32>) -> vec3f {
   return vec3f(
-    randf(seed) * 2. - 1.,
-    randf(seed) * 2. - 1.,
-    randf(seed) * 2. - 1.,
+    ${randf}(seed) * 2. - 1.,
+    ${randf}(seed) * 2. - 1.,
+    ${randf}(seed) * 2. - 1.,
   );
 }`;
 
 export const randInCircle = wgsl.fn('rand_in_circle')`(seed: ptr<function, u32>) -> vec2f {
-  let radius = sqrt(randf(seed));
-  let angle = randf(seed) * 2 * PI;
+  let radius = sqrt(${randf}(seed));
+  let angle = ${randf}(seed) * 2 * PI;
 
   return vec2f(
     cos(angle) * radius,
@@ -29,7 +29,7 @@ export const randInCircle = wgsl.fn('rand_in_circle')`(seed: ptr<function, u32>)
 export const randOnHemisphere = wgsl.fn(
   'rand_on_hemisphere'
 )`(seed: ptr<function, u32>, normal: vec3f) -> vec3f {
-  var value = rand_in_unit_cube(seed);
+  var value = ${randInUnitCube}(seed);
 
   if (dot(normal, value) < 0.) {
     value *= -1.;

@@ -12,10 +12,9 @@ import { ClientSocket, serverAddress } from '../clientSocket';
 import { InputHandler } from '../inputHandler';
 import type GameObject from '../gameObject';
 import CarObject from './carObject';
-import RoadObject from './roadObject';
+import StaticEnvironmentObject from './staticEnvironmentObject';
 import { CarBodyShape } from './carBodyShape';
 import { CarWheelShape } from './carWheelShape';
-import { RoadSegmentShape } from './roadSegmentShape';
 import StaticEnvironmentShape from './staticEnvironmentShape';
 import CameraController from './cameraController';
 
@@ -64,9 +63,8 @@ class CarGame implements Game {
   private previouslySentState: Pick<PlayerEntity, (typeof ClientUpdateFields)[number]> | null =
     null;
 
-  private staticEnvironmentShape = new StaticEnvironmentShape();
   private cameraController: CameraController | null = null;
-  private roadObject: RoadObject;
+  private staticEnvironment: StaticEnvironmentObject;
 
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
@@ -75,20 +73,17 @@ class CarGame implements Game {
       this.gameInstance.localPlayerId = socketId;
     });
 
-    this.roadObject = new RoadObject(
+    this.staticEnvironment = new StaticEnvironmentObject(
       this.gameInstance.world.with('roadPoints').first?.roadPoints ?? []
     );
 
-    this.objects.push(this.roadObject);
+    this.objects.push(this.staticEnvironment);
   }
 
   init(sceneInfo: SceneInfo): void {
     sceneInfo.registerShapeKind(CarBodyShape);
     sceneInfo.registerShapeKind(CarWheelShape);
-    sceneInfo.registerShapeKind(RoadSegmentShape);
     sceneInfo.registerShapeKind(StaticEnvironmentShape);
-
-    sceneInfo.uploadInstance(this.staticEnvironmentShape);
 
     this.cameraController = new CameraController(sceneInfo.camera);
     this.inputHandler.cameraController = this.cameraController;

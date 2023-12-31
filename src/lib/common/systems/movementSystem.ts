@@ -51,7 +51,7 @@ function movementSystem(
       entity.forwardVelocity = dampValue(entity.forwardVelocity, 0.00001, deltaTime);
     }
 
-    const speedFactor = entity.forwardVelocity / entity.maxForwardVelocity;
+    const speedFactor = Math.abs(entity.forwardVelocity) / entity.maxForwardVelocity;
 
     const turnAccFactor = utils.lerp(3, 1, speedFactor);
     entity.turnVelocity += entity.turnAcceleration * turnAccFactor * deltaTime;

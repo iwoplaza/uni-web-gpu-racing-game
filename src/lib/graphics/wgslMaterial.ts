@@ -9,12 +9,12 @@ export const normalTest = wgsl.fn(
 
 export const SunDir = wgsl.param('Sun Direction', 'normalize(vec3f(-0.5, 1., -0.2))');
 export const LambertSunColor = wgsl.param('Lambert Sun Color', 'vec3f(1., 0.95, 0.8)');
-export const LambertAmbientColor = wgsl.param('Lambert Ambient Color', 'vec3f(0.19, 0.2, 0.23)');
+export const LambertAmbientColor = wgsl.param('Lambert Ambient Color', 'vec3f(0.58, 0.6, 0.69)');
 
 export const lambert = wgsl.fn(
   'mat_lambert'
 )`(ctx: ptr<function, MatContext>, albedo: vec3f, out: ptr<function, Material>) {
-  (*out).color = (${LambertAmbientColor} + albedo * ${LambertSunColor} * (*ctx).attenuation) * (*ctx).ao;
+  (*out).color = albedo * (${LambertAmbientColor} + ${LambertSunColor} * (*ctx).attenuation) * (*ctx).ao;
 }`;
 
 export const checkerboard = wgsl.fn('pat_checkerboard')`(dir: vec2f, scale: f32) -> f32 {
