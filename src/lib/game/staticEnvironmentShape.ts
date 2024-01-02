@@ -5,6 +5,7 @@ import { checkerboard, lambert } from '../graphics/wgslMaterial';
 import * as std140 from '../graphics/std140';
 import { macros, op, sdf } from '../graphics/sdf';
 import wgsl from '../graphics/wgsl';
+import { randf } from '$lib/graphics/wgslRandom';
 
 export const MaxRoadAnchors = 64;
 export const roadAnchorsCount = wgsl.readonlyStorage('road_anchors_count', 'u32', std140.u32);
@@ -50,10 +51,13 @@ export const roadSplineSDF = wgsl.fn('whole_road')`(pos: vec2f) -> f32 {
   return min_dist;
 }`;
 
-const treeSDF = wgsl.fn('tree_sdf')`(pos: vec3f) -> f32 {
+const treeSDF = wgsl.fn('tree_sdf')`(pos: vec3f, chunk_pos: vec3f) -> f32 {
+  var seed = u32(abs(chunk_pos.x + chunk_pos.z * 13));
+  let height = ${randf}(&seed);
+
   return ${macros.union([
     // wgsl`${sdf.box3}(pos - vec3f(0, 0, 0), vec3f(1, 20, 1))` //
-    wgsl`${sdf.sphere}(pos, vec3f(0, 0, 0), 3)` //
+    wgsl`${sdf.sphere}(pos, vec3f(0, height * 5 - 2, 0), 4)` //
   ])};
 }`;
 
@@ -62,8 +66,8 @@ const chunkSDF = wgsl.fn('chunk_sdf')`(pos: vec3f, chunk_pos: vec3f) -> f32 {
 
   let d_no_grass = ${noGrassSDF}(chunk_pos.xz);
   if (d_no_grass > 1) {
-    let d_tree = ${treeSDF}(pos - chunk_pos);
-    min_dist = min(min_dist, d_tree);
+    let d_tree = ${treeSDF}(pos - chunk_pos, chunk_pos);
+    min_dist = ${op.smin}(min_dist, d_tree, 2.);
   }
 
   return min_dist;
