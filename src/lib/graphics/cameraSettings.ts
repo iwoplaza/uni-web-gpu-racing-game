@@ -2,8 +2,8 @@ import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 
 class CameraSettings {
   private _parentMatrix = mat4.identity();
-  public origin: [number, number, number] = [0, 4, 0];
-  public distance: number = 9;
+  public origin: [number, number, number] = [0, 2, 0];
+  public distance: number = 5;
 
   private _gpuBuffer: GPUBuffer | undefined = undefined;
 
@@ -29,24 +29,13 @@ class CameraSettings {
     // parent matrix
     mat4.mul(mat4.inverse(this._parentMatrix), viewMatrix, viewMatrix);
 
+    // const rad = Math.PI / 4;
     // const rad = Date.now() * 0.001;
     // mat4.rotateY(viewMatrix, rad, viewMatrix);
     mat4.translate(viewMatrix, this.origin, viewMatrix);
     mat4.translate(viewMatrix, vec3.fromValues(0, 0, -this.distance), viewMatrix);
 
     return viewMatrix;
-  }
-
-  get worldMatrix() {
-    const worldMatrix = mat4.identity();
-
-    mat4.translate(worldMatrix, vec3.fromValues(0, 0, this.distance), worldMatrix);
-    mat4.translate(worldMatrix, vec3.negate(this.origin), worldMatrix);
-
-    // parent matrix
-    mat4.mul(worldMatrix, this._parentMatrix, worldMatrix);
-
-    return worldMatrix;
   }
 
   get gpuBuffer(): GPUBuffer {

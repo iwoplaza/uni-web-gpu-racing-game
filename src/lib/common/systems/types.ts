@@ -27,7 +27,12 @@ export type Entity = {
   // Prediction drift
   positionDrift?: [number, number, number];
   yawDrift?: number;
+
+  // Track
+  roadPoints?: RoadPoint[];
 };
+
+export type RoadPoint = { pos: [number, number]; dir: [number, number] };
 
 export type PlayerEntity = With<
   Entity,

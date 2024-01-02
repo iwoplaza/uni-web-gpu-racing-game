@@ -1,6 +1,7 @@
 import { SceneRenderer } from './graphics';
 import type { GameEngineCtx } from './gameEngineCtx';
 import SceneInfo from './graphics/sceneInfo';
+import type { WGSLRuntime } from './graphics/wgsl';
 
 export interface Game {
   init(sceneInfo: SceneInfo): void;
@@ -14,6 +15,8 @@ class GameEngineCtxImpl implements GameEngineCtx {
   lastTime: number;
   deltaTime: number = 0;
   pt: number = 0;
+
+  runtime!: WGSLRuntime;
 
   constructor(public readonly sceneInfo: SceneInfo) {
     this.lastTime = Date.now();
@@ -86,8 +89,9 @@ class GameEngine {
       alphaMode: 'premultiplied'
     });
 
-    this.sceneInfo.init(device);
+    this.game.init(this.sceneInfo);
 
+    this.sceneInfo.init(device);
     this.renderer = new SceneRenderer(
       device,
       canvasCtx,
@@ -95,6 +99,10 @@ class GameEngine {
       presentationFormat,
       this.sceneInfo
     );
+    this.renderCtx.runtime = this.renderer.sdfRenderer.runtime;
+    this.tickCtx.runtime = this.renderer.sdfRenderer.runtime;
+
+    this.initState = GameEngineInitState.READY;
 
     const animationLoop = () => {
       animationFrameHandle = requestAnimationFrame(animationLoop);
@@ -102,10 +110,6 @@ class GameEngine {
     };
     let animationFrameHandle = requestAnimationFrame(animationLoop);
     this.stopAnimationLoop = () => cancelAnimationFrame(animationFrameHandle);
-
-    this.initState = GameEngineInitState.READY;
-
-    this.game.init(this.sceneInfo);
   }
 
   dispose() {
@@ -126,8 +130,7 @@ class GameEngine {
       this.timeBuildup = this.timeBuildup % this.clientTickInterval;
     }
 
-    // TODO: Uncomment to smooth between client ticks
-    // this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
+    this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
     this.game.onRender(this.renderCtx);
 
     const commandEncoder = device.createCommandEncoder();

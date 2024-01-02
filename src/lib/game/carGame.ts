@@ -1,17 +1,22 @@
 import _ from 'lodash';
 import { get } from 'svelte/store';
 
-import GameEngine from './gameEngine';
-import type { Game } from './gameEngine';
-import type { GameEngineCtx } from './gameEngineCtx';
-import type SceneInfo from './graphics/sceneInfo';
-import GameInstance from './common/gameInstance';
-import type { PlayerEntity } from './common/systems';
-import { ClientTickInterval, ClientUpdateFields } from './common/constants';
-import { ClientSocket, serverAddress } from './clientSocket';
-import { InputHandler } from './inputHandler';
-import type GameObject from './gameObject';
+import GameEngine from '../gameEngine';
+import type { Game } from '../gameEngine';
+import type { GameEngineCtx } from '../gameEngineCtx';
+import type SceneInfo from '../graphics/sceneInfo';
+import GameInstance from '../common/gameInstance';
+import type { PlayerEntity } from '../common/systems';
+import { ClientTickInterval, ClientUpdateFields } from '../common/constants';
+import { ClientSocket, serverAddress } from '../clientSocket';
+import { InputHandler } from '../inputHandler';
+import type GameObject from '../gameObject';
 import CarObject from './carObject';
+import StaticEnvironmentObject from './staticEnvironmentObject';
+import { CarBodyShape } from './carBodyShape';
+import { CarWheelShape } from './carWheelShape';
+import StaticEnvironmentShape from './staticEnvironmentShape';
+import CameraController from './cameraController';
 
 let gameEngine: GameEngine | undefined = undefined;
 export let carGame: CarGame | undefined = undefined;
@@ -58,15 +63,31 @@ class CarGame implements Game {
   private previouslySentState: Pick<PlayerEntity, (typeof ClientUpdateFields)[number]> | null =
     null;
 
+  private cameraController: CameraController | null = null;
+  private staticEnvironment: StaticEnvironmentObject;
+
   constructor(endpoint: string) {
     this.inputHandler = new InputHandler();
     this.clientSocket = new ClientSocket(this.gameInstance, endpoint, (socketId) => {
       this.myId = socketId;
       this.gameInstance.localPlayerId = socketId;
     });
+
+    this.staticEnvironment = new StaticEnvironmentObject(
+      this.gameInstance.world.with('roadPoints').first?.roadPoints ?? []
+    );
+
+    this.objects.push(this.staticEnvironment);
   }
 
   init(sceneInfo: SceneInfo): void {
+    sceneInfo.registerShapeKind(CarBodyShape);
+    sceneInfo.registerShapeKind(CarWheelShape);
+    sceneInfo.registerShapeKind(StaticEnvironmentShape);
+
+    this.cameraController = new CameraController(sceneInfo.camera);
+    this.inputHandler.cameraController = this.cameraController;
+
     this.gameInstance.world.onEntityAdded.subscribe((e) => {
       if (e.playerId) {
         console.log(`New player joined!: ${e.playerId}`);
@@ -134,9 +155,7 @@ class CarGame implements Game {
   }
 
   onRender(ctx: GameEngineCtx) {
-    if (this.myCar) {
-      ctx.sceneInfo.camera.parentMatrix = this.myCar.worldMatrix(ctx.pt);
-    }
+    this.cameraController?.onRender(ctx, this.myCar);
 
     for (const obj of this.objects) {
       obj.render(ctx);

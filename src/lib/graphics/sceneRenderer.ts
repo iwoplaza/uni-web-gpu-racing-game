@@ -7,7 +7,7 @@ import ViewportSettings from './viewportSettings';
 class SceneRenderer {
   private gBuffer: GBuffer;
   private viewportSettings: ViewportSettings;
-  private sdfRenderer: ReturnType<typeof SDFRenderer>;
+  public sdfRenderer: ReturnType<typeof SDFRenderer>;
   private postProcess: ReturnType<typeof PostProcessingStep>;
 
   constructor(

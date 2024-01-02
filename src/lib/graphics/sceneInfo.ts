@@ -4,6 +4,8 @@ import { type Parsed, BufferWriter, MaxValue } from 'typed-binary';
 import { roundUp } from '$lib/mathUtils';
 import * as std140 from './std140';
 import CameraSettings from './cameraSettings';
+import type { ShapeKind } from './types';
+import wgsl, { WGSLToken } from './wgsl';
 
 type SceneInfoStruct = Parsed<typeof SceneInfoStruct>;
 const SceneInfoStruct = std140.object({
@@ -13,37 +15,32 @@ const SceneInfoStructSize = SceneInfoStruct.measure(MaxValue).size;
 
 const MaxInstances = 64;
 
-export enum ShapeKind {
-  SPHERE,
-  CAR_WHEEL,
-  CAR_BODY
-}
-
-export const shapeKindDefinitions = Object.entries(ShapeKind)
-  .filter(([key]) => Number.isNaN(Number.parseInt(key)))
-  .map(([key, value]) => `const SHAPE_${key} = ${value};\n`)
-  .join('');
-
 export type ShapeStruct = Parsed<typeof ShapeStruct>;
 export const ShapeStruct = std140.object({
   kind: std140.u32,
-  materialIdx: std140.u32,
+  flags: std140.u32,
   extra1: std140.u32, // general purpose data
   extra2: std140.u32, // general purpose data
   transform: std140.mat4f
 });
 const ShapeStructSize = ShapeStruct.measure(MaxValue).size;
 
+export type ShapeData = Omit<ShapeStruct, 'kind'>;
+
 type ShapesArray = Parsed<typeof ShapesArray>;
 const ShapesArray = std140.arrayOf(ShapeStruct, MaxInstances);
 const ShapesArraySize = ShapesArray.measure(MaxValue).size;
 
 export interface Shape {
-  readonly data: ShapeStruct;
+  readonly kind: ShapeKind;
+  readonly data: Readonly<ShapeData>;
 }
 
 class SceneInfo {
   private _device: GPUDevice | undefined = undefined;
+
+  private shapeDefinitions: { kind: ShapeKind; token: WGSLToken; id: number }[] = [];
+  private kindToIdMap = new Map<ShapeKind, number>();
 
   private hostSceneInfo: SceneInfoStruct = {
     numOfShapes: 0
@@ -51,9 +48,9 @@ class SceneInfo {
 
   private hostShapes: ShapesArray = new Array(MaxInstances).fill(null).map(() => ({
     kind: 0,
+    flags: 0,
     extra1: 0,
     extra2: 0,
-    materialIdx: 0,
     transform: [...mat4.identity().values()]
   }));
 
@@ -76,6 +73,13 @@ class SceneInfo {
   _gpuSceneShapesBuffer: GPUBuffer | undefined;
 
   public camera = new CameraSettings();
+
+  registerShapeKind(kind: ShapeKind) {
+    const def = { kind, token: new WGSLToken('shape'), id: this.shapeDefinitions.length };
+
+    this.shapeDefinitions.push(def);
+    this.kindToIdMap.set(kind, def.id);
+  }
 
   init(device: GPUDevice) {
     this._device = device;
@@ -177,7 +181,12 @@ class SceneInfo {
       this.instancesArray.push(instance);
     }
 
-    this.writeDataToIdx(idx, instance.data);
+    const id = this.kindToIdMap.get(instance.kind);
+    if (id === undefined) {
+      throw new Error(`Cannot render shape that has not been registered before.`);
+    }
+
+    this.writeDataToIdx(idx, { kind: id, ...instance.data });
   }
 
   deleteInstance(instance: Shape) {
@@ -200,7 +209,55 @@ class SceneInfo {
     // uploading new instance count to the gpu
     this.writeSceneInfo();
 
-    this.writeDataToIdx(idx, lastInstance.data);
+    const id = this.kindToIdMap.get(lastInstance.kind)!;
+    this.writeDataToIdx(idx, { kind: id, ...lastInstance.data });
+  }
+
+  get shapeDefinitionsCode() {
+    return wgsl`
+// enum
+${this.shapeDefinitions.map((def) => wgsl`const ${def.token}_id = ${String(def.id)};\n`)}
+
+// sdf functions
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    fn sdf_${def.token}(in_pos: vec3f, ctx: ptr<function, ShapeContext>, shape_idx: u32) -> f32 {
+      var pos = in_pos;
+      ${def.kind.shapeCode}
+    }`
+)}
+
+// material functions
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    fn mat_${def.token}(ctx: ptr<function, MatContext>, shape_idx: u32, out: ptr<function, Material>) {
+      var pos = (*ctx).pos;
+      ${def.kind.materialCode}
+    }`
+)}
+
+
+`;
+  }
+
+  get sceneResolverCode() {
+    return wgsl`
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    if (kind == ${String(def.id)}) {
+      return sdf_${def.token}(pos, ctx, idx);
+    }`
+)}`;
+  }
+
+  get materialResolverCode() {
+    return wgsl`
+${this.shapeDefinitions.map(
+  (def) => wgsl`
+    if (kind == ${String(def.id)}) {
+      mat_${def.token}(ctx, u32(shape_idx), out);
+    }`
+)}`;
   }
 }
 

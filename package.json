@@ -18,7 +18,7 @@
     "miniplex": "^2.0.0",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
-    "typed-binary": "^3.0.0",
+    "typed-binary": "^3.2.0",
     "wgpu-matrix": "^2.5.0"
   },
   "devDependencies": {
