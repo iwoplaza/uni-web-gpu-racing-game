@@ -84,8 +84,6 @@ class StaticEnvironmentObject implements GameObject {
       }
     }
 
-    console.log(this.noGrassZones);
-
     this.baseShape = new StaticEnvironmentShape();
   }
 

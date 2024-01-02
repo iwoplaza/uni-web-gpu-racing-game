@@ -12,7 +12,7 @@ class CameraSettings {
   init(device: GPUDevice) {
     this._gpuBuffer = device.createBuffer({
       size: 16 * 4, // mat4x4<f32>,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
   }
 
