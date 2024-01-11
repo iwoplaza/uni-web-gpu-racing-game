@@ -88,7 +88,7 @@ class SceneInfo {
 
     this._gpuSceneInfoBuffer = device.createBuffer({
       label: 'Scene Info Buffer',
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
       size: roundUp(SceneInfoStructSize, 16),
       mappedAtCreation: true
     });
@@ -100,7 +100,7 @@ class SceneInfo {
 
     this._gpuSceneShapesBuffer = device.createBuffer({
       label: 'Scene Shapes Buffer',
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
       size: roundUp(ShapesArraySize, 16),
       mappedAtCreation: true
     });
@@ -221,7 +221,7 @@ ${this.shapeDefinitions.map((def) => wgsl`const ${def.token}_id = ${String(def.i
 // sdf functions
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-    fn sdf_${def.token}(in_pos: vec3f, ctx: ptr<function, ShapeContext>, shape_idx: u32) -> f32 {
+    fn sdf_${def.token}(in_pos: vec3f, ctx: ShapeContext, shape_idx: u32) -> f32 {
       var pos = in_pos;
       ${def.kind.shapeCode}
     }`
@@ -230,8 +230,8 @@ ${this.shapeDefinitions.map(
 // material functions
 ${this.shapeDefinitions.map(
   (def) => wgsl`
-    fn mat_${def.token}(ctx: ptr<function, MatContext>, shape_idx: u32, out: ptr<function, Material>) {
-      var pos = (*ctx).pos;
+    fn mat_${def.token}(ctx: MatContext, shape_idx: u32, out: ptr<function, Material>) {
+      var pos = ctx.pos;
       ${def.kind.materialCode}
     }`
 )}

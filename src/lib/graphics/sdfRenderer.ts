@@ -18,11 +18,13 @@ struct Material {
 }
 
 struct ShapeContext {
+  view_pos: vec3f,
   view_dir: vec3f,
 }
 
 struct MatContext {
   pos: vec3f,
+  view_pos: vec3f,
   view_dir: vec3f,
   normal: vec3f,
   attenuation: f32,
@@ -45,8 +47,8 @@ const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
 const PI2 = 2. * PI;
 const MAX_STEPS = 500;
-const SURFACE_DIST = 0.01;
 const SUPER_SAMPLES = 1;
+const AMBIENT_OCCLUSION_RAYS = 0;
 const ONE_OVER_SUPER_SAMPLES = 1. / SUPER_SAMPLES;
 const FAR = 1000.;
 
@@ -65,17 +67,22 @@ struct SceneShape {
 
 @group(1) @binding(0) var output_tex: texture_storage_2d<${outputFormatParam}, write>;
 
-@group(2) @binding(0) var<storage, read> view_matrix: mat4x4<f32>;
-@group(2) @binding(1) var<storage, read> scene_info: SceneInfo;
-@group(2) @binding(2) var<storage, read> scene_shapes: array<SceneShape, MAX_INSTANCES>;
+@group(2) @binding(0) var<uniform> view_matrix: mat4x4<f32>;
+@group(2) @binding(1) var<uniform> scene_info: SceneInfo;
+@group(2) @binding(2) var<uniform> scene_shapes: array<SceneShape, MAX_INSTANCES>;
 
 fn convert_rgb_to_y(rgb: vec3f) -> f32 {
   return 16./255. + (64.738 * rgb.r + 129.057 * rgb.g + 25.064 * rgb.b) / 255.;
 }
 
+fn surface_dist(view_pos: vec3f) -> f32 {
+  let dist_from_camera = length(view_pos);
+  return dist_from_camera * 0.01;
+}
+
 ${sceneInfo.shapeDefinitionsCode}
 
-fn sdf_scene_shape(pos: vec3f, ctx: ptr<function, ShapeContext>, idx: u32) -> f32 {
+fn sdf_scene_shape(pos: vec3f, ctx: ShapeContext, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
 
   ${sceneInfo.sceneResolverCode}
@@ -83,7 +90,7 @@ fn sdf_scene_shape(pos: vec3f, ctx: ptr<function, ShapeContext>, idx: u32) -> f3
   return FAR;
 }
 
-fn sdf_world(pos: vec3f, ctx: ptr<function, ShapeContext>) -> f32 {
+fn sdf_world(pos: vec3f, ctx: ShapeContext) -> f32 {
   var min_dist = FAR;
 
   let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
@@ -95,7 +102,7 @@ fn sdf_world(pos: vec3f, ctx: ptr<function, ShapeContext>) -> f32 {
 }
 
 fn sky_color(dir: vec3f) -> vec3f {
-  let t = max(0., dir.y);
+  let t = max(0., dot(dir, normalize(vec3f(0.2, 1, 0))));
   // let c = ${checkerboard}(dir.xy, 30.);
 
   return mix(
@@ -105,7 +112,7 @@ fn sky_color(dir: vec3f) -> vec3f {
   );
 }
 
-fn material_world(ctx: ptr<function, MatContext>, out: ptr<function, Material>) {
+fn material_world(ctx: MatContext, out: ptr<function, Material>) {
   (*out).emissive = false;
   (*out).color = vec3f(0., 0., 0.);
 
@@ -113,11 +120,12 @@ fn material_world(ctx: ptr<function, MatContext>, out: ptr<function, Material>) 
   var min_dist = FAR;
 
   var shape_ctx: ShapeContext;
-  shape_ctx.view_dir = (*ctx).view_dir;
+  shape_ctx.view_pos = ctx.pos - ctx.view_pos;
+  shape_ctx.view_dir = ctx.view_dir;
 
   let instances = min(u32(scene_info.num_of_shapes), MAX_INSTANCES);
   for (var idx = 0u; idx < instances; idx++) {
-    let obj_dist = sdf_scene_shape((*ctx).pos, &shape_ctx, idx);
+    let obj_dist = sdf_scene_shape(ctx.pos, shape_ctx, idx);
     if (obj_dist < min_dist) {
       min_dist = obj_dist;
       shape_idx = i32(idx);
@@ -131,21 +139,18 @@ fn material_world(ctx: ptr<function, MatContext>, out: ptr<function, Material>) 
   }
 }
 
-fn world_normals(point: vec3f, ctx: ptr<function, ShapeContext>) -> vec3f {
-  let epsilon = SURFACE_DIST * 0.5; // arbitrary - should be smaller than any surface detail in your distance function, but not so small as to get lost in float precision
-  let offX = vec3f(point.x + epsilon, point.y, point.z);
-  let offY = vec3f(point.x, point.y + epsilon, point.z);
-  let offZ = vec3f(point.x, point.y, point.z + epsilon);
+fn world_normals(point: vec3f, ctx: ShapeContext) -> vec3f {
+  let epsilon = surface_dist(point - ctx.view_pos) * 0.5; // arbitrary - should be smaller than any surface detail in your distance function, but not so small as to get lost in float precision
+  let offX = point + ${wgsl.constant('vec3f(1, 0, 0)')} * epsilon;
+  let offY = point + ${wgsl.constant('vec3f(0, 1, 0)')} * epsilon;
+  let offZ = point + ${wgsl.constant('vec3f(0, 0, 1)')} * epsilon;
   
   let centerDistance = sdf_world(point, ctx);
-  let xDistance = sdf_world(offX, ctx);
-  let yDistance = sdf_world(offY, ctx);
-  let zDistance = sdf_world(offZ, ctx);
 
   return vec3f(
-    (xDistance - centerDistance),
-    (yDistance - centerDistance),
-    (zDistance - centerDistance),
+    (sdf_world(offX, ctx) - centerDistance),
+    (sdf_world(offY, ctx) - centerDistance),
+    (sdf_world(offZ, ctx) - centerDistance),
   ) / epsilon;
 }
 
@@ -177,11 +182,12 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, limit: u32, out: ptr<function, MarchRes
   var progress = 0.;
 
   var shape_ctx: ShapeContext;
+  shape_ctx.view_pos = ray_pos;
   shape_ctx.view_dir = ray_dir;
 
   for (; step <= limit; step++) {
     pos = ray_pos + ray_dir * progress;
-    min_dist = sdf_world(pos, &shape_ctx);
+    min_dist = sdf_world(pos, shape_ctx);
 
     // Inside volume?
     if (min_dist <= 0.) {
@@ -189,7 +195,7 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, limit: u32, out: ptr<function, MarchRes
       break;
     }
 
-    if (min_dist < SURFACE_DIST && min_dist < prev_dist) {
+    if (min_dist < surface_dist(pos - ray_pos) && min_dist < prev_dist) {
       // No need to check more objects.
       break;
     }
@@ -208,7 +214,7 @@ fn march(ray_pos: vec3f, ray_dir: vec3f, limit: u32, out: ptr<function, MarchRes
   (*out).position = pos;
 
   // Not near surface or distance rising?
-  if (min_dist > SURFACE_DIST * 2. || min_dist > prev_dist) {
+  if (min_dist > surface_dist(pos - ray_pos) * 2. || min_dist > prev_dist) {
     // Sky
     (*out).steps = MAX_STEPS + 1;
     return;
@@ -255,8 +261,9 @@ fn main_frag(
       }
       else {
         var shape_ctx: ShapeContext;
+        shape_ctx.view_pos = ray_pos;
         shape_ctx.view_dir = ray_dir;
-        let normal = world_normals(march_result.position, &shape_ctx);
+        let normal = world_normals(march_result.position, shape_ctx);
         // approximating ambient occlusion
         // var ao = max(0, f32(march_result.steps));
         // ao = ao / (1 + ao);
@@ -264,12 +271,16 @@ fn main_frag(
         // let ao = 1.;
         // new ambient occlusion algorithm
         var ao = 1.;
-        for (var aoi = 0; aoi < 3; aoi += 1) {
-          let dir = ${randOnHemisphere}(&seed, normal);
-          march(march_result.position, dir, 30, &ao_march_result);
-          ao += distance(ao_march_result.position, march_result.position);
+        if (AMBIENT_OCCLUSION_RAYS > 0) {
+          ao = 0.;
+          for (var aoi = 0; aoi < AMBIENT_OCCLUSION_RAYS; aoi += 1) {
+            let dir = ${randOnHemisphere}(&seed, normal);
+            march(march_result.position, dir, 30, &ao_march_result);
+            ao += distance(ao_march_result.position, march_result.position);
+          }
+          ao = ao / AMBIENT_OCCLUSION_RAYS;
+          ao = ao / (1 + ao);
         }
-        ao = ao / (1 + ao);
 
         // Marching towards the sun
         march(march_result.position + ${SunDir} * 0.01, ${SunDir}, MAX_STEPS, &sun_march_result);
@@ -279,11 +290,12 @@ fn main_frag(
 
         var mat_ctx: MatContext;
         mat_ctx.pos = march_result.position;
+        mat_ctx.view_pos = ray_pos;
         mat_ctx.view_dir = ray_dir;
         mat_ctx.normal = normal;
         mat_ctx.attenuation = attenuation;
         mat_ctx.ao = ao;
-        material_world(&mat_ctx, &material);
+        material_world(mat_ctx, &material);
       }
 
       acc += material.color;
@@ -346,7 +358,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
         binding: 0,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: 'read-only-storage'
+          type: 'uniform'
         }
       },
       // scene_info
@@ -354,7 +366,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
         binding: 1,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: 'read-only-storage'
+          type: 'uniform'
         }
       },
       // scene_shapes
@@ -362,7 +374,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
         binding: 2,
         visibility: GPUShaderStage.COMPUTE,
         buffer: {
-          type: 'read-only-storage'
+          type: 'uniform'
         }
       }
     ]

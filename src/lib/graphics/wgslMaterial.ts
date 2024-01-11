@@ -2,8 +2,8 @@ import wgsl from './wgsl';
 
 export const normalTest = wgsl.fn(
   'mat_normal_test'
-)`(ctx: ptr<function, MatContext>, out: ptr<function, Material>) {
-  let n = (*ctx).normal;
+)`(ctx: MatContext, out: ptr<function, Material>) {
+  let n = ctx.normal;
   (*out).color = n + vec3f(.5, .5, .5);
 }`;
 
@@ -13,8 +13,8 @@ export const LambertAmbientColor = wgsl.param('Lambert Ambient Color', 'vec3f(0.
 
 export const lambert = wgsl.fn(
   'mat_lambert'
-)`(ctx: ptr<function, MatContext>, albedo: vec3f, out: ptr<function, Material>) {
-  (*out).color = albedo * (${LambertAmbientColor} + ${LambertSunColor} * (*ctx).attenuation) * (*ctx).ao;
+)`(ctx: MatContext, albedo: vec3f, out: ptr<function, Material>) {
+  (*out).color = albedo * (${LambertAmbientColor} + ${LambertSunColor} * ctx.attenuation) * ctx.ao;
 }`;
 
 export const checkerboard = wgsl.fn('pat_checkerboard')`(dir: vec2f, scale: f32) -> f32 {
