@@ -6,6 +6,7 @@ import * as std140 from './std140';
 import CameraSettings from './cameraSettings';
 import type { ShapeKind } from './types';
 import wgsl, { WGSLToken } from './wgsl';
+import { lambert } from './wgslMaterial';
 
 type SceneInfoStruct = Parsed<typeof SceneInfoStruct>;
 const SceneInfoStruct = std140.object({
@@ -232,7 +233,19 @@ ${this.shapeDefinitions.map(
   (def) => wgsl`
     fn mat_${def.token}(ctx: MatContext, shape_idx: u32, out: ptr<function, Material>) {
       var pos = ctx.pos;
-      ${def.kind.materialCode}
+      if(scene_shapes[shape_idx].extra1!=0)
+      {
+        var rgb = scene_shapes[shape_idx].extra1;
+        var r = (rgb >> 16) & 0xFF;
+        var g = (rgb >> 8) & 0xFF;
+        var b = rgb & 0xFF;
+        // Use the unpacked color directly in the lambert material function
+        ${lambert}(ctx, vec3f(f32(r) / 255.0, f32(g) / 255.0, f32(b) / 255.0), out);
+      }
+      else
+      {
+        ${def.kind.materialCode}
+      }
     }`
 )}
 

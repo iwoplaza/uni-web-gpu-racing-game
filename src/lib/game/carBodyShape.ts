@@ -44,11 +44,12 @@ export class CarBodyShape implements Shape {
 
   _parentMatrix = [...mat4.identity().values()];
   position = [0, 0, 0];
-  color: [number, number, number] = [0.8, 0.3, 0.2];
+  color: [number, number, number];
 
-  constructor(pos: [number, number, number], color: [number, number, number] = [0.8, 0.3, 0.2]) {
+  constructor(pos: [number, number, number], color: string) {
     this.position = pos;
-    this.color = color;
+    const toRGBArray = (rgbStr: string) => rgbStr.match(/\d+/g).map(Number);
+    this.color = toRGBArray(color) as [number, number, number];
   }
 
   set parentMatrix(value: Mat4) {
@@ -62,9 +63,14 @@ export class CarBodyShape implements Shape {
 
     mat4.mul(transform, this._parentMatrix, transform);
 
+    const packedColor =
+      (Math.floor(this.color[0] * 255) << 16) |
+      (Math.floor(this.color[1] * 255) << 8) |
+      Math.floor(this.color[2] * 255);
+
     return {
       flags: 0,
-      extra1: 0,
+      extra1: packedColor,
       extra2: 0,
       transform: [...transform.values()]
     };
