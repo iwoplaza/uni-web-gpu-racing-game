@@ -41,10 +41,7 @@ class CarObject implements GameObject {
       new CarWheelShape([1, 0.5, -1.5]) // back-right
     ];
 
-    this.body = new CarBodyShape(
-      [0, 0.5, 0],
-      PlayerColors[entity.codeName]
-    );
+    this.body = new CarBodyShape([0, 0.5, 0], PlayerColors[entity.codeName]);
   }
 
   dispose(sceneInfo: SceneInfo) {
