@@ -1,11 +1,12 @@
 import { World } from 'miniplex';
 import { vec3 } from 'wgpu-matrix';
 
-import type { Entity, PlayerEntity } from './systems';
+import { PlayerCodenames, type Entity, type PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
 import driftCorrectionSystem from './systems/driftCorrectionSystem';
 import roadCollisionSystem from './systems/roadCollisionSystem';
+import carCollisionSystem from './systems/carCollisionSystem';
 
 export interface TickContext {
   /**
@@ -16,10 +17,25 @@ export interface TickContext {
 
 class GameInstance {
   world: World<Entity>;
+  private playerSpawnPositions: Record<string, [number, number, number]>;
+  private availableCodenames: string[];
+  private playerCodenames: Record<string, string>;
   public localPlayerId: string | undefined;
 
   constructor() {
     this.world = new World<Entity>();
+    this.availableCodenames = PlayerCodenames;
+    this.playerCodenames = {};
+    this.playerSpawnPositions = {
+      Alpha: [0, 0, 0],
+      Bravo: [6, 0, 0],
+      Charlie: [12, 0, 0],
+      Delta: [6, 0, 6],
+      Echo: [12, 0, 6],
+      Foxtrot: [18, 0, 6],
+      Golf: [0, 0, 12],
+      Hotel: [6, 0, 12]
+    };
 
     this.world.add({
       roadPoints: [
@@ -42,12 +58,20 @@ class GameInstance {
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);
     roadCollisionSystem(this.world, ctx.deltaTime);
+    carCollisionSystem(this.world);
   }
 
   addPlayer(playerId: string) {
+    if (this.availableCodenames.length === 0) {
+      console.log('No available codenames');
+      return null;
+    }
+    const codeName = this.availableCodenames.shift() as string;
+    const spawnPosition = this.playerSpawnPositions[codeName] || [0, 0, 0];
+
     const playerEntity: PlayerEntity = {
       playerId,
-      position: [0, 0, 0],
+      position: spawnPosition,
       forwardVelocity: 0,
       forwardAcceleration: 0,
       maxForwardVelocity: 0.05,
@@ -55,10 +79,12 @@ class GameInstance {
 
       yawAngle: 0,
       turnVelocity: 0,
-      turnAcceleration: 0
+      turnAcceleration: 0,
+      codeName
     };
+    this.playerCodenames[playerId] = codeName;
 
-    console.log(`New player: ${playerId}`);
+    console.log(`New player: ${playerId}, Codename: ${codeName}`);
     this.world.add(playerEntity);
     return playerEntity;
   }
@@ -69,6 +95,11 @@ class GameInstance {
     if (player) {
       console.log(`Player disconnected: ${playerId}`);
       this.world.remove(player);
+      const codename = this.playerCodenames[playerId];
+      if (codename) {
+        this.availableCodenames.push(codename);
+        delete this.playerCodenames[playerId];
+      }
     }
   }
 

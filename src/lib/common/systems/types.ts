@@ -5,6 +5,7 @@ export type Entity = {
   // car properties
   maxForwardVelocity?: number;
   maxBackwardVelocity?: number;
+  codeName?: string;
 
   position?: [number, number, number];
   forwardVelocity?: number;
@@ -45,4 +46,5 @@ export type PlayerEntity = With<
   | 'turnAcceleration'
   | 'turnVelocity'
   | 'yawAngle'
+  | 'codeName'
 >;

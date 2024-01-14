@@ -44,9 +44,11 @@ export class CarBodyShape implements Shape {
 
   _parentMatrix = [...mat4.identity().values()];
   position = [0, 0, 0];
+  color: [number, number, number] = [0.8, 0.3, 0.2];
 
-  constructor(pos: [number, number, number]) {
+  constructor(pos: [number, number, number], color: [number, number, number] = [0.8, 0.3, 0.2]) {
     this.position = pos;
+    this.color = color;
   }
 
   set parentMatrix(value: Mat4) {
