@@ -33,6 +33,8 @@ export default function injectSocketIO(server: http.Server) {
 
     const state = gameInstance.world.entities;
     emitToAll('game-update', state);
+    const gameState = gameInstance.world.with('gameState').first;
+    if (gameState) emitToAll('game-state-update', gameState);
   }, ServerTickInterval);
 
   io.on('connection', (socket) => {

@@ -34,8 +34,8 @@ function carCollisionSystem(world: World<Entity>) {
     for (let j = i + 1; j < entities.length; j++) {
       const collision = checkCollision(entities[i], entities[j]);
       if (collision.collided) {
-        entities[i].forwardVelocity = -entities[i].forwardVelocity/2;
-        entities[j].forwardVelocity = -entities[j].forwardVelocity/2;
+        entities[i].forwardVelocity = -entities[i].forwardVelocity / 2;
+        entities[j].forwardVelocity = -entities[j].forwardVelocity / 2;
       }
     }
   }

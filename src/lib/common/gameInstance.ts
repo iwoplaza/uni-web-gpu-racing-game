@@ -51,6 +51,14 @@ class GameInstance {
         { pos: [0, -75], dir: [0, 10] }
       ]
     });
+    this.world.add({
+      gameState: {
+        inLobby: true,
+        inGame: false,
+        showingLeaderboard: false,
+        controlsDisabled: true
+      }
+    });
   }
 
   tick(ctx: TickContext) {

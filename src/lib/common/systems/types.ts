@@ -31,8 +31,19 @@ export type Entity = {
 
   // Track
   roadPoints?: RoadPoint[];
+
+  // Game state
+  gameState?: GameState;
 };
 
+export type GameState = {
+  customMessage?: string;
+  inLobby?: boolean;
+  inGame?: boolean;
+  showingLeaderboard?: boolean;
+  controlsDisabled?: boolean;
+  leaderboard?: { codename: string; loops: number }[];
+};
 export type RoadPoint = { pos: [number, number]; dir: [number, number] };
 
 export type PlayerEntity = With<
