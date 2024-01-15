@@ -9,7 +9,7 @@
   import GameMessages from '$lib/GameMessages.svelte';
 
   let canvas!: HTMLCanvasElement;
-  let addressInput: string = 'localhost';
+  let addressInput: string = 'gpu.dushess.net';
 
   let readyState = false;
   serverAddress.subscribe((address) => {
