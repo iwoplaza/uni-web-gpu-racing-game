@@ -1,11 +1,12 @@
 import type { World } from 'miniplex';
 import type { Entity, GameState, PlayerEntity } from './types';
 
+const LOOPS = 1;
+const DELAY = 5000;
 export class GameStateManager {
   private world: World<Entity>; // Assuming World is a class that manages entities
   private gameState: GameState;
   private startFinishLine = { startX: 0, startY: 0, endY: 20 };
-
   constructor(world: World<Entity>) {
     this.world = world;
     this.gameState = {
@@ -25,8 +26,8 @@ export class GameStateManager {
 
   playerConnected(playerId: string) {
     // Add player to leaderboard with 0 loops
-    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: '' });
-
+    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: false });
+    this.gameState.leaderboard = this.gameState.leaderboard?.sort((a, b) => b.loops - a.loops);
     // Update players ready list
     this.gameState.playersReady?.push({ playerId, ready: false });
 
@@ -90,7 +91,7 @@ export class GameStateManager {
 
     // 3. Check latest time update of loop
     const now = Date.now();
-    if (lastCrossTime && now - lastCrossTime < 30000) {
+    if (lastCrossTime && now - lastCrossTime < DELAY) {
       player.lastCrossTime = now;
       return;
     }
@@ -98,17 +99,17 @@ export class GameStateManager {
     // Increment lap count and update last cross time
     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
     if (playerLapData) {
-      playerLapData.loops += 1;
+      playerLapData.loops += 1; // TODO: CHANGE IT BACK
+      if (playerLapData.loops >= LOOPS) {
+        playerLapData.winner = true;
+      }
     }
     player.lastCrossTime = now;
   }
   private isInsideFinishBox(player: PlayerEntity): boolean {
     const { position } = player;
     // Assuming position is [x, y, z]
-    return (
-      position[0] >= -18 && position[0] <= 18 &&
-      position[2] >= -18 && position[2] <= 0
-    );
+    return position[0] >= -18 && position[0] <= 18 && position[2] >= -18 && position[2] <= 0;
   }
 
   private handleLobbyState(players: PlayerEntity[]) {
@@ -125,7 +126,7 @@ export class GameStateManager {
   }
 
   private handleInGameState(players: PlayerEntity[]) {
-    const winner = players.find((player) => this.hasPlayerCompletedLaps(player, 10));
+    const winner = players.find((player) => this.hasPlayerCompletedLaps(player, 5));
     if (winner) {
       this.endGame(winner);
     }
@@ -136,15 +137,21 @@ export class GameStateManager {
       ...this.gameState,
       inGame: true,
       inLobby: false,
+      showingLeaderboard: true,
       controlsDisabled: false
     };
   }
 
-  private endGame(winner: PlayerEntity) {
-    this.gameState.showingLeaderboard = true;
+  private async endGame(winner: PlayerEntity) {
+    this.gameState.customMessage = `Winner: ${winner.codeName}`;
+    this.gameState.showingLeaderboard = false;
     this.gameState.leaderboard = [
-      { playerId: winner.playerId!, loops: 10, winner: winner.playerId! }
+      { playerId: winner.playerId!, loops: LOOPS, winner: true }
     ];
+    this.gameState.winningAnimation = true;
+
+    // Delay resetToLobby by 10 seconds
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     this.resetToLobby();
   }
 
@@ -159,9 +166,13 @@ export class GameStateManager {
   }
 
   private hasPlayerCompletedLaps(player: PlayerEntity, laps: number): boolean {
-    // Implement the logic to check if the player has completed the required laps
-    // This might involve tracking the player's progress in the game
-    return false; // Placeholder return value
+    if (this.gameState.leaderboard) {
+      const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
+      if (playerLapData) {
+        return playerLapData.loops >= laps;
+      }
+    }
+    return false;
   }
 }
 

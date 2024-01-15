@@ -64,6 +64,7 @@ class GameInstance {
     this.gameStateManager = new GameStateManager(this.world);
   }
 
+
   tick(ctx: TickContext) {
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);

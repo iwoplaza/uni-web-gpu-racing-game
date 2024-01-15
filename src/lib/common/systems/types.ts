@@ -43,8 +43,9 @@ export type GameState = {
   inGame?: boolean;
   showingLeaderboard?: boolean;
   controlsDisabled?: boolean;
-  leaderboard?: { playerId: string; loops: number, winner: string }[];
+  leaderboard?: { playerId: string; loops: number, winner: boolean }[];
   playersReady?: { playerId: string; ready: boolean}[];
+  winningAnimation?: boolean;
 };
 export type RoadPoint = { pos: [number, number]; dir: [number, number] };
 
