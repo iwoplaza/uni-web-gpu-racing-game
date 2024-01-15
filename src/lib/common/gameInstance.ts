@@ -29,14 +29,14 @@ class GameInstance {
     this.availableCodenames = PlayerCodenames;
     this.playerCodenames = {};
     this.playerSpawnPositions = {
-      Alpha: [0, 0, 0],
-      Bravo: [6, 0, 0],
-      Charlie: [12, 0, 0],
-      Delta: [6, 0, 6],
-      Echo: [12, 0, 6],
-      Foxtrot: [18, 0, 6],
-      Golf: [0, 0, 12],
-      Hotel: [6, 0, 12]
+      Red: [0, 0, 0],
+      Yellow: [6, 0, 0],
+      Pink: [12, 0, 0],
+      Blue: [6, 0, 6],
+      Cyan: [12, 0, 6],
+      Purple: [18, 0, 6],
+      White: [0, 0, 12],
+      Green: [6, 0, 12]
     };
 
     this.world.add({
@@ -64,14 +64,13 @@ class GameInstance {
     this.gameStateManager = new GameStateManager(this.world);
   }
 
-
   tick(ctx: TickContext) {
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);
     roadCollisionSystem(this.world, ctx.deltaTime);
     carCollisionSystem(this.world);
-    this.gameStateManager.tick()
+    this.gameStateManager.tick();
   }
 
   addPlayer(playerId: string) {
