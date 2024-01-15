@@ -64,9 +64,9 @@ export class CarBodyShape implements Shape {
     mat4.mul(transform, this._parentMatrix, transform);
 
     const packedColor =
-      (Math.floor(this.color[0] * 255) << 16) |
-      (Math.floor(this.color[1] * 255) << 8) |
-      Math.floor(this.color[2] * 255);
+      (Math.floor(this.color[0]) << 16) |
+      (Math.floor(this.color[1]) << 8) |
+      Math.floor(this.color[2]);
 
     return {
       flags: 0,
@@ -83,6 +83,10 @@ export class CarBodyShape implements Shape {
 `;
 
   static materialCode = wgsl`
-  ${lambert}(ctx, vec3f(0.8, 0.3, 0.2), out);
+        var rgb = scene_shapes[shape_idx].extra1;
+        var r = (rgb >> 16) & 0xFF;
+        var g = (rgb >> 8) & 0xFF;
+        var b = rgb & 0xFF;
+        ${lambert}(ctx, vec3f(f32(r) / 255.0, f32(g) / 255.0, f32(b) / 255.0), out);
   `;
 }

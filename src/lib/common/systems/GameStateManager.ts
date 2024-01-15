@@ -99,7 +99,7 @@ export class GameStateManager {
     // Increment lap count and update last cross time
     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
     if (playerLapData) {
-      playerLapData.loops += 1; // TODO: CHANGE IT BACK
+      playerLapData.loops += 1;
       if (playerLapData.loops >= LOOPS) {
         playerLapData.winner = true;
       }
