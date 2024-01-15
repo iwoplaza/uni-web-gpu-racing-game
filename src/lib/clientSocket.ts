@@ -56,6 +56,7 @@ export class ClientSocket {
 
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
+      serverAddress.set(null);
     });
 
     this.socket.on(

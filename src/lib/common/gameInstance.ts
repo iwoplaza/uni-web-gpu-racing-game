@@ -17,14 +17,18 @@ export interface TickContext {
 }
 
 class GameInstance {
-  world: World<Entity>;
-  private playerSpawnPositions: Record<string, [number, number, number]>;
-  private availableCodenames: string[];
-  private playerCodenames: Record<string, string>;
+  world!: World<Entity>;
+  private playerSpawnPositions!: Record<string, [number, number, number]>;
+  private availableCodenames!: string[];
+  private playerCodenames!: Record<string, string>;
   public localPlayerId: string | undefined;
-  public gameStateManager: GameStateManager;
+  public gameStateManager!: GameStateManager;
 
   constructor() {
+    this.initialize();
+  }
+
+  initialize() {
     this.world = new World<Entity>();
     this.availableCodenames = PlayerCodenames;
     this.playerCodenames = {};
@@ -63,7 +67,6 @@ class GameInstance {
     });
     this.gameStateManager = new GameStateManager(this.world);
   }
-
   tick(ctx: TickContext) {
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);

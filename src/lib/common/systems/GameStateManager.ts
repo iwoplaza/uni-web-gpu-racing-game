@@ -1,8 +1,8 @@
 import type { World } from 'miniplex';
 import type { Entity, GameState, PlayerEntity } from './types';
 
-const LOOPS = 3;
-const DELAY = 30000;
+const LOOPS = 1;
+const DELAY = 5000;
 export class GameStateManager {
   private world: World<Entity>; // Assuming World is a class that manages entities
   private gameState: GameState;
@@ -126,7 +126,7 @@ export class GameStateManager {
   }
 
   private handleInGameState(players: PlayerEntity[]) {
-    const winner = players.find((player) => this.hasPlayerCompletedLaps(player, 5));
+    const winner = players.find((player) => this.hasPlayerCompletedLaps(player, LOOPS));
     if (winner) {
       this.endGame(winner);
     }
@@ -138,7 +138,8 @@ export class GameStateManager {
       inGame: true,
       inLobby: false,
       showingLeaderboard: true,
-      controlsDisabled: false
+      controlsDisabled: false,
+      winningAnimation: false
     };
   }
 
@@ -153,6 +154,7 @@ export class GameStateManager {
     // Delay resetToLobby by 10 seconds
     await new Promise((resolve) => setTimeout(resolve, 10000));
     this.resetToLobby();
+    process.exit(0);
   }
 
   private resetToLobby() {
@@ -161,7 +163,8 @@ export class GameStateManager {
       inLobby: true,
       inGame: false,
       showingLeaderboard: false,
-      controlsDisabled: false
+      controlsDisabled: false,
+      winningAnimation: false,
     };
   }
 
