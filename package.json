@@ -9,13 +9,15 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest",
     "lint": "prettier --plugin-search-dir . --check . && eslint .",
-    "format": "prettier --plugin-search-dir . --write ."
+    "format": "prettier --plugin-search-dir . --write .",
+    "start:pm2": "npm run build  && pm2 start build/index.js --name racing"
   },
   "dependencies": {
     "@types/lodash": "^4.14.202",
     "express": "^4.18.2",
     "lodash": "^4.17.21",
     "miniplex": "^2.0.0",
+    "pm2": "^5.3.0",
     "socket.io": "^4.7.2",
     "socket.io-client": "^4.7.2",
     "typed-binary": "^3.2.0",

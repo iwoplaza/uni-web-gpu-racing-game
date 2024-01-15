@@ -6,6 +6,7 @@ import * as std140 from './std140';
 import CameraSettings from './cameraSettings';
 import type { ShapeKind } from './types';
 import wgsl, { WGSLToken } from './wgsl';
+import { lambert } from './wgslMaterial';
 
 type SceneInfoStruct = Parsed<typeof SceneInfoStruct>;
 const SceneInfoStruct = std140.object({
@@ -232,7 +233,7 @@ ${this.shapeDefinitions.map(
   (def) => wgsl`
     fn mat_${def.token}(ctx: MatContext, shape_idx: u32, out: ptr<function, Material>) {
       var pos = ctx.pos;
-      ${def.kind.materialCode}
+        ${def.kind.materialCode}
     }`
 )}
 

@@ -5,6 +5,7 @@ export type Entity = {
   // car properties
   maxForwardVelocity?: number;
   maxBackwardVelocity?: number;
+  codeName?: string;
 
   position?: [number, number, number];
   forwardVelocity?: number;
@@ -30,8 +31,22 @@ export type Entity = {
 
   // Track
   roadPoints?: RoadPoint[];
+
+  // Game state
+  gameState?: GameState;
+  lastCrossTime?: number;
 };
 
+export type GameState = {
+  customMessage?: string;
+  inLobby?: boolean;
+  inGame?: boolean;
+  showingLeaderboard?: boolean;
+  controlsDisabled?: boolean;
+  leaderboard?: { playerId: string; loops: number, winner: boolean }[];
+  playersReady?: { playerId: string; ready: boolean}[];
+  winningAnimation?: boolean;
+};
 export type RoadPoint = { pos: [number, number]; dir: [number, number] };
 
 export type PlayerEntity = With<
@@ -45,4 +60,6 @@ export type PlayerEntity = With<
   | 'turnAcceleration'
   | 'turnVelocity'
   | 'yawAngle'
+  | 'codeName'
+  | 'lastCrossTime'
 >;

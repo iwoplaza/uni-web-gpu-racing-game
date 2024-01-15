@@ -1,11 +1,13 @@
 import { World } from 'miniplex';
 import { vec3 } from 'wgpu-matrix';
 
-import type { Entity, PlayerEntity } from './systems';
+import { PlayerCodenames, type Entity, type PlayerEntity } from './systems';
 import movementSystem from './systems/movementSystem';
 import steeringSystem from './systems/steeringSystem';
 import driftCorrectionSystem from './systems/driftCorrectionSystem';
 import roadCollisionSystem from './systems/roadCollisionSystem';
+import carCollisionSystem from './systems/carCollisionSystem';
+import GameStateManager from './systems/GameStateManager';
 
 export interface TickContext {
   /**
@@ -15,11 +17,31 @@ export interface TickContext {
 }
 
 class GameInstance {
-  world: World<Entity>;
+  world!: World<Entity>;
+  private playerSpawnPositions!: Record<string, [number, number, number]>;
+  private availableCodenames!: string[];
+  private playerCodenames!: Record<string, string>;
   public localPlayerId: string | undefined;
+  public gameStateManager!: GameStateManager;
 
   constructor() {
+    this.initialize();
+  }
+
+  initialize() {
     this.world = new World<Entity>();
+    this.availableCodenames = PlayerCodenames;
+    this.playerCodenames = {};
+    this.playerSpawnPositions = {
+      Red: [0, 0, 0],
+      Yellow: [6, 0, 0],
+      Pink: [12, 0, 0],
+      Blue: [6, 0, 6],
+      Cyan: [12, 0, 6],
+      Purple: [18, 0, 6],
+      White: [0, 0, 12],
+      Green: [6, 0, 12]
+    };
 
     this.world.add({
       roadPoints: [
@@ -35,19 +57,36 @@ class GameInstance {
         { pos: [0, -75], dir: [0, 10] }
       ]
     });
+    this.world.add({
+      gameState: {
+        inLobby: true,
+        inGame: false,
+        showingLeaderboard: false,
+        controlsDisabled: true
+      }
+    });
+    this.gameStateManager = new GameStateManager(this.world);
   }
-
   tick(ctx: TickContext) {
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);
     roadCollisionSystem(this.world, ctx.deltaTime);
+    carCollisionSystem(this.world);
+    this.gameStateManager.tick();
   }
 
   addPlayer(playerId: string) {
+    if (this.availableCodenames.length === 0) {
+      console.log('No available codenames');
+      return null;
+    }
+    const codeName = this.availableCodenames.shift() as string;
+    const spawnPosition = this.playerSpawnPositions[codeName] || [0, 0, 0];
+
     const playerEntity: PlayerEntity = {
       playerId,
-      position: [0, 0, 0],
+      position: spawnPosition,
       forwardVelocity: 0,
       forwardAcceleration: 0,
       maxForwardVelocity: 0.05,
@@ -55,11 +94,15 @@ class GameInstance {
 
       yawAngle: 0,
       turnVelocity: 0,
-      turnAcceleration: 0
+      turnAcceleration: 0,
+      codeName,
+      lastCrossTime: Date.now()
     };
+    this.playerCodenames[playerId] = codeName;
 
-    console.log(`New player: ${playerId}`);
+    console.log(`New player: ${playerId}, Codename: ${codeName}`);
     this.world.add(playerEntity);
+    this.gameStateManager.playerConnected(playerId);
     return playerEntity;
   }
 
@@ -69,6 +112,12 @@ class GameInstance {
     if (player) {
       console.log(`Player disconnected: ${playerId}`);
       this.world.remove(player);
+      const codename = this.playerCodenames[playerId];
+      if (codename) {
+        this.availableCodenames.push(codename);
+        delete this.playerCodenames[playerId];
+      }
+      this.gameStateManager.playerDisconnected(playerId);
     }
   }
 

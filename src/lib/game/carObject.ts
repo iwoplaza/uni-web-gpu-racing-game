@@ -2,7 +2,7 @@ import _ from 'lodash';
 import { mat4, utils, vec3 } from 'wgpu-matrix';
 
 import type { GameEngineCtx } from '../gameEngineCtx';
-import type { Entity, PlayerEntity } from '../common/systems';
+import { PlayerColors, type Entity, type PlayerEntity } from '../common/systems';
 import type SceneInfo from '../graphics/sceneInfo';
 import type GameObject from '../gameObject';
 import { CarWheelShape } from './carWheelShape';
@@ -41,7 +41,7 @@ class CarObject implements GameObject {
       new CarWheelShape([1, 0.5, -1.5]) // back-right
     ];
 
-    this.body = new CarBodyShape([0, 0.5, 0]);
+    this.body = new CarBodyShape([0, 0.5, 0], PlayerColors[entity.codeName]);
   }
 
   dispose(sceneInfo: SceneInfo) {

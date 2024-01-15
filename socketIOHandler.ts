@@ -33,6 +33,8 @@ export default function injectSocketIO(server: http.Server) {
 
     const state = gameInstance.world.entities;
     emitToAll('game-update', state);
+    const gameState = gameInstance.world.with('gameState').first;
+    if (gameState) emitToAll('game-state-update', gameState);
   }, ServerTickInterval);
 
   io.on('connection', (socket) => {
@@ -43,7 +45,9 @@ export default function injectSocketIO(server: http.Server) {
       gameInstance.removePlayer(socket.id);
       emitToAll('player-left', socket.id);
     });
-
+    socket.on('player-ready', (ready: boolean) => {
+      gameInstance.gameStateManager.playerSendReady(socket.id, ready);
+    });
     socket.on(
       'user-input',
       unwrapTimestamped((player: PlayerEntity) => {

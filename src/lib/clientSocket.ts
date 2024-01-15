@@ -12,6 +12,7 @@ import {
   type Timestamped
 } from './common/timestampMiddleware';
 import type { ClientUpdateField } from './common/constants';
+import gameStateStore from './gameStateStore';
 
 export const latency = writable(0);
 export const jitter = writable(0);
@@ -55,6 +56,7 @@ export class ClientSocket {
 
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
+      serverAddress.set(null);
     });
 
     this.socket.on(
@@ -115,6 +117,20 @@ export class ClientSocket {
           }
         })
     );
+    this.socket.on(
+      'game-state-update',
+      pipeline<Timestamped<Entity>>()
+        .use(fakeDelayMiddleware(taskQueue)) //
+        .use(measurePingMiddleware()) //
+        .use(extractTimestampMiddleware()) //
+        .finally((update) => {
+            const state = update.gameState;
+            if (!state) {
+              return;
+            }
+            gameStateStore.set(state);
+        })
+    );
   }
 
   sendUserInput = pipeline<Pick<Entity, ClientUpdateField>>() //
@@ -130,6 +146,7 @@ export class ClientSocket {
   connect() {
     this.socket.connect();
   }
+  
 }
 
 function getStorage() {

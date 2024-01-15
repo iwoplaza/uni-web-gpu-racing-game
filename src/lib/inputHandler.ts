@@ -3,6 +3,7 @@ import type CameraController from './game/cameraController';
 import type { CameraMode } from './game/cameraController';
 import type CarObject from './game/carObject';
 import persistent from './persistent';
+import gameStateStore from './gameStateStore';
 
 const cameraMode = persistent<CameraMode>('camera_mode', 'third-person');
 
@@ -43,6 +44,8 @@ export class InputHandler {
   }
 
   onStateChanged() {
+    const inputAvailable = get(gameStateStore)?.inGame ?? false;
+    if (!inputAvailable) return;
     if (this.car) {
       this.car.entity.isAccelerating =
         this.pressedKeysSet.has('w') || this.pressedKeysSet.has('leftarrow');
