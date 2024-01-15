@@ -17,5 +17,5 @@ export const PlayerColors = {
   Echo: 'rgb(0, 255, 255)',
   Foxtrot: 'rgb(255, 0, 255)',
   Golf: 'rgb(255, 255, 255)',
-  Hotel: 'rgb(0, 0, 0)'
+  Hotel: 'rgb(0, 230, 46)'
 };

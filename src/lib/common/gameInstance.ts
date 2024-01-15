@@ -65,7 +65,6 @@ class GameInstance {
   }
 
   tick(ctx: TickContext) {
-    
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);

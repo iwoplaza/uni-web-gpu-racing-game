@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { GameState } from './common/systems/types';
+  import {GetLocalPlayerId, carGame} from './game/carGame';
   import gameStateStore from './gameStateStore';
   let gameState: GameState | null;
   gameStateStore.subscribe((state) => {
@@ -16,7 +17,11 @@
       <p>Leaders</p>
       <ul>
         {#each gameState.leaderboard as leader}
-          <li>{leader.playerId}: {leader.loops}</li>
+          {#if leader.playerId === GetLocalPlayerId()}
+            <li class="text-green-500">{leader.playerId}: {leader.loops}</li>
+          {:else}
+            <li>{leader.playerId}: {leader.loops}</li>
+          {/if}
         {/each}
       </ul>
     {/if}

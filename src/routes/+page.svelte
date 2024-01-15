@@ -12,6 +12,9 @@
   let addressInput: string = 'localhost';
 
   let readyState = false;
+  serverAddress.subscribe((address) => {
+    readyState = false;
+  });
 
   onMount(() => {
     createCarGame(canvas);

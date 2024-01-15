@@ -53,7 +53,9 @@ export function disconnect() {
 export function ready(ready: boolean) {
   carGame?.clientSocket.socket.emit('player-ready', ready);
 }
-
+export function GetLocalPlayerId() {
+  return carGame?.clientSocket.socket.id;
+}
 
 class CarGame implements Game {
   private myId: string | null = null;

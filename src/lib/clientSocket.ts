@@ -12,7 +12,6 @@ import {
   type Timestamped
 } from './common/timestampMiddleware';
 import type { ClientUpdateField } from './common/constants';
-import type { GameState } from './common/systems/types';
 import gameStateStore from './gameStateStore';
 
 export const latency = writable(0);

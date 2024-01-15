@@ -4,7 +4,7 @@ import type { World } from 'miniplex';
 import type { Entity, PlayerEntity } from './types';
 import _ from 'lodash';
 
-const CAR_RADIUS = 2; // Default radius for collision, adjust as needed
+const CAR_RADIUS = 1.5;
 
 function checkCollision(entity1: PlayerEntity, entity2: PlayerEntity) {
   // Use entity radius or default radius

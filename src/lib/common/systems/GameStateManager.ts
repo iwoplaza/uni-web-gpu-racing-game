@@ -25,7 +25,7 @@ export class GameStateManager {
 
   playerConnected(playerId: string) {
     // Add player to leaderboard with 0 loops
-    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: '' });
+    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: '', });
 
     // Update players ready list
     this.gameState.playersReady?.push({ playerId, ready: false });
