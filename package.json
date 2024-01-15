@@ -10,7 +10,7 @@
     "test": "vitest",
     "lint": "prettier --plugin-search-dir . --check . && eslint .",
     "format": "prettier --plugin-search-dir . --write .",
-    "start:pm2": "pm2 stop racing && npm run build  && pm2 start build/index.js --name racing"
+    "start:pm2": "npm run build  && pm2 start build/index.js --name racing"
   },
   "dependencies": {
     "@types/lodash": "^4.14.202",
