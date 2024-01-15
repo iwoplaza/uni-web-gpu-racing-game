@@ -2,7 +2,7 @@ import type { World } from 'miniplex';
 import type { Entity, GameState, PlayerEntity } from './types';
 
 const LOOPS = 3;
-const DELAY = 30000;
+const DELAY = 10000;
 export class GameStateManager {
   private world: World<Entity>; // Assuming World is a class that manages entities
   private gameState: GameState;
