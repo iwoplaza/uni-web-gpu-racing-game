@@ -109,7 +109,7 @@ export class GameStateManager {
   private isInsideFinishBox(player: PlayerEntity): boolean {
     const { position } = player;
     // Assuming position is [x, y, z]
-    return position[0] >= -18 && position[0] <= 18 && position[2] >= -18 && position[2] <= 0;
+    return position[0] >= -25 && position[0] <= 25 && position[2] >= -25 && position[2] <= 0;
   }
 
   private handleLobbyState(players: PlayerEntity[]) {
