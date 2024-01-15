@@ -68,9 +68,9 @@ class GameInstance {
     
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
-    driftCorrectionSystem(this.world, ctx.deltaTime);
+    // driftCorrectionSystem(this.world, ctx.deltaTime);
     roadCollisionSystem(this.world, ctx.deltaTime);
-    carCollisionSystem(this.world);
+    // carCollisionSystem(this.world);
     this.gameStateManager.tick()
   }
 

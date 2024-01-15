@@ -4,6 +4,7 @@ import type { Entity, GameState, PlayerEntity } from './types';
 export class GameStateManager {
   private world: World<Entity>; // Assuming World is a class that manages entities
   private gameState: GameState;
+  private startFinishLine = { startX: 0, startY: 0, endY: 20 };
 
   constructor(world: World<Entity>) {
     this.world = world;
@@ -70,8 +71,35 @@ export class GameStateManager {
     } else if (this.gameState.inGame) {
       this.handleInGameState(players);
     }
+
+    // players.forEach((player) => {
+    //   this.checkAndIncrementLaps(player);
+    // });
+
     const worldState = this.world.with('gameState').first!;
     this.world.update(worldState, { gameState: this.gameState });
+  }
+  // private checkAndIncrementLaps(player: PlayerEntity) {
+  //   const { forwardVelocity } = player;
+
+  //   if (forwardVelocity > 0 && this.isCrossingLine(player)) {
+  //     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
+  //     if (playerLapData) {
+  //       playerLapData.loops += 1;
+  //     }
+  //   } else {
+  //     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
+  //     if (playerLapData) {
+  //     }
+  //   }
+  // }
+  private isCrossingLine(player: PlayerEntity): boolean {
+    const { position } = player;
+    return (
+      position[0] === this.startFinishLine.startX &&
+      position[1] >= this.startFinishLine.startY &&
+      position[1] <= this.startFinishLine.endY
+    );
   }
 
   private handleLobbyState(players: PlayerEntity[]) {
