@@ -7,6 +7,7 @@ import steeringSystem from './systems/steeringSystem';
 import driftCorrectionSystem from './systems/driftCorrectionSystem';
 import roadCollisionSystem from './systems/roadCollisionSystem';
 import carCollisionSystem from './systems/carCollisionSystem';
+import GameStateManager from './systems/GameStateManager';
 
 export interface TickContext {
   /**
@@ -21,6 +22,7 @@ class GameInstance {
   private availableCodenames: string[];
   private playerCodenames: Record<string, string>;
   public localPlayerId: string | undefined;
+  public gameStateManager: GameStateManager;
 
   constructor() {
     this.world = new World<Entity>();
@@ -59,14 +61,17 @@ class GameInstance {
         controlsDisabled: true
       }
     });
+    this.gameStateManager = new GameStateManager(this.world);
   }
 
   tick(ctx: TickContext) {
+    
     steeringSystem(this.world, this.localPlayerId);
     movementSystem(this.world, undefined, ctx.deltaTime);
     driftCorrectionSystem(this.world, ctx.deltaTime);
     roadCollisionSystem(this.world, ctx.deltaTime);
     carCollisionSystem(this.world);
+    this.gameStateManager.tick()
   }
 
   addPlayer(playerId: string) {
@@ -94,6 +99,7 @@ class GameInstance {
 
     console.log(`New player: ${playerId}, Codename: ${codeName}`);
     this.world.add(playerEntity);
+    this.gameStateManager.playerConnected(playerId);
     return playerEntity;
   }
 
@@ -108,6 +114,7 @@ class GameInstance {
         this.availableCodenames.push(codename);
         delete this.playerCodenames[playerId];
       }
+      this.gameStateManager.playerDisconnected(playerId);
     }
   }
 

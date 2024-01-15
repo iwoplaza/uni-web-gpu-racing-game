@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  import { connect, createCarGame, disconnect, disposeCarGame } from '$lib/game/carGame';
+  import { connect, createCarGame, disconnect, disposeCarGame, ready } from '$lib/game/carGame';
   import { packetsReceived, packetsSent, ping } from '$lib/common/ping';
   import { jitter, latency, maxBitrate, packetsLost, serverAddress } from '$lib/clientSocket';
-
+  import gameStateStore from '$lib/gameStateStore';
   import FpsCounter from '$lib/FpsCounter.svelte';
   import GameMessages from '$lib/GameMessages.svelte';
 
   let canvas!: HTMLCanvasElement;
   let addressInput: string = 'localhost';
+
+  let readyState = false;
 
   onMount(() => {
     createCarGame(canvas);
@@ -32,6 +34,27 @@
   <canvas bind:this={canvas} width={256} height={256} />
   {#if $serverAddress}
     <button class="button-19 disconnect" on:click={() => disconnect()}>Disconnect</button>
+    {#if $gameStateStore?.inLobby}
+      <div>
+        {#if readyState}
+          <button
+            class="button-19 unready"
+            on:click={() => {
+              readyState = !readyState;
+              ready(readyState);
+            }}>Unready</button
+          >
+        {:else}
+          <button
+            class="button-19 ready"
+            on:click={() => {
+              readyState = !readyState;
+              ready(readyState);
+            }}>Ready</button
+          >
+        {/if}
+      </div>
+    {/if}
     <div>
       <p>Latency (0-150 ms). Current value {$latency}</p>
       <input type="range" min="0" max="150" step="10" bind:value={$latency} />
@@ -132,5 +155,20 @@
   }
   .disconnect:after {
     background-color: rgb(249, 0, 0);
+  }
+
+  .ready {
+    background-color: rgb(16, 208, 144);
+    margin: 20px;
+  }
+  .ready:after {
+    background-color: rgb(0, 249, 129);
+  }
+  .unready {
+    background-color: rgb(100, 96, 96);
+    margin: 20px;
+  }
+  .unready:after {
+    background-color: rgb(91, 91, 91);
   }
 </style>

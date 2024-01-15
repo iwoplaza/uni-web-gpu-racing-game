@@ -146,6 +146,7 @@ export class ClientSocket {
   connect() {
     this.socket.connect();
   }
+  
 }
 
 function getStorage() {

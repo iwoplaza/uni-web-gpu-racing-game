@@ -50,6 +50,10 @@ export function disconnect() {
 
   disposeCarGame();
 }
+export function ready(ready: boolean) {
+  carGame?.clientSocket.socket.emit('player-ready', ready);
+}
+
 
 class CarGame implements Game {
   private myId: string | null = null;

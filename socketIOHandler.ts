@@ -45,7 +45,9 @@ export default function injectSocketIO(server: http.Server) {
       gameInstance.removePlayer(socket.id);
       emitToAll('player-left', socket.id);
     });
-
+    socket.on('player-ready', (ready: boolean) => {
+      gameInstance.gameStateManager.playerSendReady(socket.id, ready);
+    });
     socket.on(
       'user-input',
       unwrapTimestamped((player: PlayerEntity) => {
