@@ -14,7 +14,7 @@
       <p class="text-xl text-black font-light">{@html gameState.customMessage}</p>
     {/if}
     {#if gameState.inGame && gameState.leaderboard}
-      <p>Leaders</p>
+      <h1>Leaders</h1>
       <ul>
         {#each gameState.leaderboard as leader}
           {#if leader.playerId === GetLocalPlayerId()}

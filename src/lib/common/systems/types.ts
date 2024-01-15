@@ -34,6 +34,7 @@ export type Entity = {
 
   // Game state
   gameState?: GameState;
+  lastCrossTime?: number;
 };
 
 export type GameState = {
@@ -59,4 +60,5 @@ export type PlayerEntity = With<
   | 'turnVelocity'
   | 'yawAngle'
   | 'codeName'
+  | 'lastCrossTime'
 >;

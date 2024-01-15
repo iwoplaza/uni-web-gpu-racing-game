@@ -25,7 +25,7 @@ export class GameStateManager {
 
   playerConnected(playerId: string) {
     // Add player to leaderboard with 0 loops
-    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: '', });
+    this.gameState.leaderboard?.push({ playerId, loops: 0, winner: '' });
 
     // Update players ready list
     this.gameState.playersReady?.push({ playerId, ready: false });
@@ -72,33 +72,42 @@ export class GameStateManager {
       this.handleInGameState(players);
     }
 
-    // players.forEach((player) => {
-    //   this.checkAndIncrementLaps(player);
-    // });
+    players.forEach((player) => {
+      this.checkAndIncrementLaps(player);
+    });
 
     const worldState = this.world.with('gameState').first!;
     this.world.update(worldState, { gameState: this.gameState });
   }
-  // private checkAndIncrementLaps(player: PlayerEntity) {
-  //   const { forwardVelocity } = player;
+  private checkAndIncrementLaps(player: PlayerEntity) {
+    const { forwardVelocity, lastCrossTime } = player;
 
-  //   if (forwardVelocity > 0 && this.isCrossingLine(player)) {
-  //     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
-  //     if (playerLapData) {
-  //       playerLapData.loops += 1;
-  //     }
-  //   } else {
-  //     const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
-  //     if (playerLapData) {
-  //     }
-  //   }
-  // }
-  private isCrossingLine(player: PlayerEntity): boolean {
+    // 1. Check if velocity is positive
+    if (forwardVelocity <= 0) return;
+
+    // 2. Check if inside box of start/finish
+    if (!this.isInsideFinishBox(player)) return;
+
+    // 3. Check latest time update of loop
+    const now = Date.now();
+    if (lastCrossTime && now - lastCrossTime < 30000) {
+      player.lastCrossTime = now;
+      return;
+    }
+
+    // Increment lap count and update last cross time
+    const playerLapData = this.gameState.leaderboard.find((p) => p.playerId === player.playerId);
+    if (playerLapData) {
+      playerLapData.loops += 1;
+    }
+    player.lastCrossTime = now;
+  }
+  private isInsideFinishBox(player: PlayerEntity): boolean {
     const { position } = player;
+    // Assuming position is [x, y, z]
     return (
-      position[0] === this.startFinishLine.startX &&
-      position[1] >= this.startFinishLine.startY &&
-      position[1] <= this.startFinishLine.endY
+      position[0] >= -18 && position[0] <= 18 &&
+      position[2] >= -18 && position[2] <= 0
     );
   }
 

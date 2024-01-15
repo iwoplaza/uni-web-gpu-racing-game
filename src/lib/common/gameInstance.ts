@@ -92,7 +92,8 @@ class GameInstance {
       yawAngle: 0,
       turnVelocity: 0,
       turnAcceleration: 0,
-      codeName
+      codeName,
+      lastCrossTime: Date.now()
     };
     this.playerCodenames[playerId] = codeName;
 
