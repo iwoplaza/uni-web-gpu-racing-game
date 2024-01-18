@@ -1,52 +1,17 @@
-import { BufferWriter, MaxValue, type Parsed } from 'typed-binary';
-
-import { roundUp } from '$lib/mathUtils';
 import type GBuffer from '../gBuffer';
-import * as std140 from '../std140';
+import type RendererContext from '../rendererCtx';
 import fullScreenQuadWGSL from '../fullScreenQuad.wgsl?raw';
 import postProcessWGSL from './postProcess.wgsl?raw';
 
 type Options = {
   device: GPUDevice;
-  context: GPUCanvasContext;
   presentationFormat: GPUTextureFormat;
   gBuffer: GBuffer;
 };
 
-type ViewportStruct = Parsed<typeof ViewportStruct>;
-const ViewportStruct = std140.object({
-  canvasSize: std140.vec2u
-  // --
-});
-const ViewportStructSize = ViewportStruct.measure(MaxValue).size;
-
-export const PostProcessingStep = ({ device, context, presentationFormat, gBuffer }: Options) => {
+export const PostProcessingStep = ({ device, presentationFormat, gBuffer }: Options) => {
   //
   // SCENE
-  //
-
-  const viewport = {
-    canvasSize: gBuffer.size
-  };
-
-  const viewportUniformBuffer = device.createBuffer({
-    size: roundUp(ViewportStructSize, 16),
-    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-  });
-
-  // Eagerly filling the buffer
-  const viewportUniformData = new ArrayBuffer(ViewportStructSize);
-  const bufferWriter = new BufferWriter(viewportUniformData);
-  ViewportStruct.write(bufferWriter, viewport);
-
-  device.queue.writeBuffer(
-    viewportUniformBuffer, // dest
-    0, // dest offset
-    viewportUniformData, // src
-    0, // src offset
-    viewportUniformData.byteLength // size
-  );
-
   //
 
   const fullScreenQuadShader = device.createShaderModule({
@@ -98,12 +63,11 @@ export const PostProcessingStep = ({ device, context, presentationFormat, gBuffe
   });
 
   return {
-    perform(commandEncoder: GPUCommandEncoder) {
+    perform(ctx: RendererContext) {
       // Updating color attachment
-      const textureView = context.getCurrentTexture().createView();
-      passColorAttachment.view = textureView;
+      passColorAttachment.view = ctx.renderTargetView;
 
-      const pass = commandEncoder.beginRenderPass(passDescriptor);
+      const pass = ctx.commandEncoder.beginRenderPass(passDescriptor);
       pass.setPipeline(pipeline);
       pass.setBindGroup(0, bindGroup);
       pass.draw(6);

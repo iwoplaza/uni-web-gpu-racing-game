@@ -7,6 +7,7 @@ export class GameStateManager {
   private world: World<Entity>; // Assuming World is a class that manages entities
   private gameState: GameState;
   private startFinishLine = { startX: 0, startY: 0, endY: 20 };
+
   constructor(world: World<Entity>) {
     this.world = world;
     this.gameState = {
@@ -80,6 +81,7 @@ export class GameStateManager {
     const worldState = this.world.with('gameState').first!;
     this.world.update(worldState, { gameState: this.gameState });
   }
+
   private checkAndIncrementLaps(player: PlayerEntity) {
     const { forwardVelocity, lastCrossTime } = player;
 
@@ -106,6 +108,7 @@ export class GameStateManager {
     }
     player.lastCrossTime = now;
   }
+
   private isInsideFinishBox(player: PlayerEntity): boolean {
     const { position } = player;
     // Assuming position is [x, y, z]
@@ -117,7 +120,7 @@ export class GameStateManager {
     const playersReady = this.gameState.playersReady?.filter((pr) => pr.ready) ?? [];
     this.gameState.customMessage = `Players ready (${playersReady.length}/${players.length})`;
 
-    if (players.length >= 2) {
+    if (players.length >= 1) {
       const allReady = this.gameState.playersReady?.every((pr) => pr.ready) ?? false;
       if (allReady) {
         this.startGame();
@@ -127,6 +130,7 @@ export class GameStateManager {
 
   private handleInGameState(players: PlayerEntity[]) {
     const winner = players.find((player) => this.hasPlayerCompletedLaps(player, LOOPS));
+
     if (winner) {
       this.endGame(winner);
     }
@@ -146,9 +150,7 @@ export class GameStateManager {
   private async endGame(winner: PlayerEntity) {
     this.gameState.customMessage = `Winner: ${winner.codeName}`;
     this.gameState.showingLeaderboard = false;
-    this.gameState.leaderboard = [
-      { playerId: winner.playerId!, loops: LOOPS, winner: true }
-    ];
+    this.gameState.leaderboard = [{ playerId: winner.playerId!, loops: LOOPS, winner: true }];
     this.gameState.winningAnimation = true;
 
     // Delay resetToLobby by 10 seconds
@@ -164,7 +166,7 @@ export class GameStateManager {
       inGame: false,
       showingLeaderboard: false,
       controlsDisabled: false,
-      winningAnimation: false,
+      winningAnimation: false
     };
   }
 

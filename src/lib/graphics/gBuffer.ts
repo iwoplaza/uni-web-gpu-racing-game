@@ -1,16 +1,20 @@
+import type RendererContext from './rendererCtx';
+import { diffResolution } from './rendererCtx';
+
 type RGBA = { r: number; g: number; b: number; a: number };
+
+type SpecificDescriptor = Omit<GPUTextureDescriptor, 'size'> & { size: [number, number] };
 
 type GBufferSlot = {
   texture: GPUTexture;
   view: GPUTextureView;
+  descriptor: SpecificDescriptor;
   clearValue: RGBA;
-  format: GPUTextureFormat;
-  size: [number, number];
 };
 
 function createGBufferSlot(
   device: GPUDevice,
-  descriptor: Omit<GPUTextureDescriptor, 'size'> & { size: [number, number] },
+  descriptor: SpecificDescriptor,
   clearValue: RGBA
 ): GBufferSlot {
   const texture = device.createTexture(descriptor);
@@ -18,28 +22,30 @@ function createGBufferSlot(
   return {
     texture,
     view: texture.createView(),
-    clearValue,
-    format: descriptor.format,
-    size: descriptor.size
+    descriptor,
+    clearValue
   };
 }
 
 class GBuffer {
+  private prevResolution: [number, number];
   slots: GBufferSlot[] = [];
   rawRender: GBufferSlot; // a render before any post-processing
 
-  constructor(device: GPUDevice, private _size: [number, number]) {
+  constructor(device: GPUDevice, resolution: [number, number]) {
+    this.prevResolution = resolution;
+
     this.slots.push(
       (this.rawRender = createGBufferSlot(
         device,
         {
           // size: [this.size[0] / 2, this.size[1] / 2],
-          size: _size,
+          size: resolution,
           usage:
             GPUTextureUsage.RENDER_ATTACHMENT |
             GPUTextureUsage.TEXTURE_BINDING |
             GPUTextureUsage.STORAGE_BINDING,
-          // color.rgb, material_type
+          // color.rgba
           format: 'rgba8unorm'
         },
         // clear value
@@ -47,18 +53,26 @@ class GBuffer {
           r: 0, // color.r
           g: 0, // color.g
           b: 0, // color.b
-          a: 0 // material_type
+          a: 0 // color.a
         }
       ))
     );
   }
 
-  get size() {
-    return this._size;
-  }
+  prepare(ctx: RendererContext) {
+    if (!diffResolution(this.prevResolution, ctx.targetResolution)) {
+      return;
+    }
 
-  updateSize(size: [number, number]) {
-    this._size = size;
+    this.prevResolution = [...ctx.targetResolution];
+
+    this.rawRender.descriptor.size = [...ctx.targetResolution];
+
+    for (const slot of this.slots) {
+      slot.texture.destroy();
+      slot.texture = ctx.device.createTexture(slot.descriptor);
+      slot.view = slot.texture.createView();
+    }
   }
 }
 

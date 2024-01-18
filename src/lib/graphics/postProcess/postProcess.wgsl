@@ -1,7 +1,3 @@
-struct Uniforms {
-  canvasSize: vec2u,
-}
-
 @group(0) @binding(0) var sourceTexture: texture_2d<f32>;
 
 @fragment

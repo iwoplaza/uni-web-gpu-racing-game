@@ -8,16 +8,24 @@ import wgsl from '../graphics/wgsl';
 import { randf } from '$lib/graphics/wgslRandom';
 
 export const MaxRoadAnchors = 64;
-export const roadAnchorsCount = wgsl.readonlyStorage('road_anchors_count', 'u32', std140.u32);
-export const roadAnchorsBuffer = wgsl.readonlyStorage(
+export const roadAnchorsCount = wgsl.READONLY_STORAGE.allocate(
+  'road_anchors_count',
+  'u32',
+  std140.u32
+);
+export const roadAnchorsBuffer = wgsl.READONLY_STORAGE.allocate(
   'road_anchors',
   `array<vec2f, ${MaxRoadAnchors}>`,
   std140.arrayOf(std140.vec2f, MaxRoadAnchors)
 );
 
 export const MaxNoGrassZones = 64;
-export const noGrassZonesCount = wgsl.readonlyStorage('no_grass_zones_count', 'u32', std140.u32);
-export const noGrassZones = wgsl.readonlyStorage(
+export const noGrassZonesCount = wgsl.READONLY_STORAGE.allocate(
+  'no_grass_zones_count',
+  'u32',
+  std140.u32
+);
+export const noGrassZones = wgsl.READONLY_STORAGE.allocate(
   'no_grass_zones',
   `array<vec4f, ${MaxNoGrassZones}>`,
   std140.arrayOf(std140.vec4f, MaxNoGrassZones)
@@ -99,6 +107,7 @@ class StaticEnvironmentShape implements Shape {
     // wgsl`${chunkSDF}(pos, chunk_pos + vec3f(0, 0, chunk_size[0]))`
   ])};
   `;
+
   static materialCode = wgsl`
   let d_track = ${roadSplineSDF}(pos.xz);
 

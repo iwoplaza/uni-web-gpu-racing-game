@@ -1,7 +1,8 @@
 import { SceneRenderer } from './graphics';
-import type { GameEngineCtx } from './gameEngineCtx';
 import SceneInfo from './graphics/sceneInfo';
+import type { GameEngineCtx } from './gameEngineCtx';
 import type { WGSLRuntime } from './graphics/wgsl';
+import type RendererContext from './graphics/rendererCtx';
 
 export interface Game {
   init(sceneInfo: SceneInfo): void;
@@ -29,6 +30,35 @@ class GameEngineCtxImpl implements GameEngineCtx {
   }
 }
 
+class RendererContextImpl implements RendererContext {
+  public commandEncoder!: GPUCommandEncoder;
+  public targetResolution: [number, number] = [0, 0];
+
+  constructor(
+    public device: GPUDevice,
+    private _canvas: HTMLCanvasElement,
+    private _canvasCtx: GPUCanvasContext
+  ) {
+    this.targetResolution[0] = this._canvas.clientWidth * devicePixelRatio;
+    this.targetResolution[1] = this._canvas.clientHeight * devicePixelRatio;
+    this._canvas.width = this.targetResolution[0];
+    this._canvas.height = this.targetResolution[1];
+  }
+
+  renderPrep() {
+    this.targetResolution[0] = this._canvas.clientWidth * devicePixelRatio;
+    this.targetResolution[1] = this._canvas.clientHeight * devicePixelRatio;
+    this._canvas.width = this.targetResolution[0];
+    this._canvas.height = this.targetResolution[1];
+
+    this.commandEncoder = this.device.createCommandEncoder();
+  }
+
+  get renderTargetView(): GPUTextureView {
+    return this._canvasCtx.getCurrentTexture().createView();
+  }
+}
+
 export enum GameEngineInitState {
   NOT_INITIALIZED,
   STARTING,
@@ -42,6 +72,7 @@ class GameEngine {
 
   private renderCtx: GameEngineCtxImpl;
   private tickCtx: GameEngineCtxImpl;
+  private rendererCtx!: RendererContextImpl;
   private sceneInfo: SceneInfo;
   private timeBuildup = 0;
 
@@ -77,8 +108,6 @@ class GameEngine {
     }
 
     // Computing canvas properties
-    canvas.width = 512;
-    canvas.height = 512;
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
     // Configuring canvas
@@ -89,13 +118,14 @@ class GameEngine {
       alphaMode: 'premultiplied'
     });
 
+    this.rendererCtx = new RendererContextImpl(device, canvas, canvasCtx);
+
     this.game.init(this.sceneInfo);
 
     this.sceneInfo.init(device);
     this.renderer = new SceneRenderer(
       device,
-      canvasCtx,
-      [canvas.width, canvas.height],
+      [...this.rendererCtx.targetResolution],
       presentationFormat,
       this.sceneInfo
     );
@@ -120,6 +150,8 @@ class GameEngine {
   }
 
   renderFrame(device: GPUDevice) {
+    this.rendererCtx.renderPrep();
+
     this.renderCtx.tick();
 
     this.timeBuildup += this.renderCtx.deltaTime;
@@ -133,9 +165,8 @@ class GameEngine {
     this.renderCtx.pt = this.timeBuildup / this.clientTickInterval;
     this.game.onRender(this.renderCtx);
 
-    const commandEncoder = device.createCommandEncoder();
-    this.renderer?.render(commandEncoder);
-    device.queue.submit([commandEncoder.finish()]);
+    this.renderer?.render(this.rendererCtx);
+    device.queue.submit([this.rendererCtx.commandEncoder.finish()]);
   }
 }
 

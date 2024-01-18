@@ -18,63 +18,124 @@ export class NameRegistry {
   }
 }
 
-export class StorageRegistry {
+export class WGSLMemoryBlock {
   public size = 0;
-  public entries: WGSLStorage[] = [];
-  public storageName = new WGSLToken('readonly_storage');
-  private locationsMap = new WeakMap<WGSLStorage, number>();
+  public entries: WGSLMemory<unknown>[] = [];
+  public variableName: WGSLToken;
+  private locationsMap = new WeakMap<WGSLMemory<unknown>, number>();
 
-  register(storage: WGSLStorage) {
-    this.entries.push(storage);
-    // aligning
-    this.size = roundUp(this.size, storage.baseAlignment);
-    this.locationsMap.set(storage, this.size);
-    this.size += storage.size;
+  constructor(
+    private readonly name: string,
+    public readonly usage: number,
+    public readonly bufferBindingType: GPUBufferBindingType
+  ) {
+    this.variableName = new WGSLToken(name);
   }
 
-  locationFor(storage: WGSLStorage) {
-    return this.locationsMap.get(storage);
+  definitionCode(bindingGroup: number, bindingIdx: number) {
+    const storageTypeToken = new WGSLToken(`${this.name}_type`);
+    const fieldDefinitions = this.entries.map((e) => code`${e.nameToken}: ${e.typeExpr},\n`);
+
+    if (fieldDefinitions.length === 0) {
+      return undefined;
+    }
+
+    let bindingType = 'storage, read';
+
+    if (this.bufferBindingType === 'uniform') {
+      bindingType = 'uniform';
+    }
+
+    if (this.bufferBindingType === 'storage') {
+      bindingType = 'storage, read_write';
+    }
+
+    return code`
+    struct ${storageTypeToken} {
+      ${fieldDefinitions}
+    }
+  
+    @group(${bindingGroup}) @binding(${bindingIdx}) var<${bindingType}> ${this.variableName}: ${storageTypeToken};
+    `;
+  }
+
+  allocate<T>(description: string, typeExpr: WGSLSegment, typeSchema: AlignedSchema<T>) {
+    const memoryEntry = new WGSLMemory(this, description, typeExpr, typeSchema);
+
+    this.entries.push(memoryEntry);
+    // aligning
+    this.size = roundUp(this.size, memoryEntry.baseAlignment);
+    this.locationsMap.set(memoryEntry, this.size);
+    this.size += memoryEntry.size;
+
+    return memoryEntry;
+  }
+
+  locationFor(memoryEntry: WGSLMemory<unknown>) {
+    return this.locationsMap.get(memoryEntry);
+  }
+}
+
+export class MemoryRegistry {
+  public blocks = new Set<WGSLMemoryBlock>();
+
+  constructor() {}
+
+  register(storage: WGSLMemoryBlock) {
+    this.blocks.add(storage);
   }
 }
 
 export class WGSLRuntime {
-  public readonly readonlyStorageBuffer?: GPUBuffer;
+  private memoryBlockBuffers = new WeakMap<WGSLMemoryBlock, GPUBuffer>();
 
   constructor(
     public readonly device: GPUDevice,
     public readonly names: NameRegistry,
-    public readonly readonlyStorage: StorageRegistry
+    public readonly memory: MemoryRegistry
   ) {
-    if (readonlyStorage.size > 0) {
-      this.readonlyStorageBuffer = device.createBuffer({
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-        size: roundUp(readonlyStorage.size, 16)
-      });
+    for (const block of memory.blocks) {
+      if (block.size > 0) {
+        this.memoryBlockBuffers.set(
+          block,
+          device.createBuffer({
+            usage: block.usage, //GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            size: roundUp(block.size, 16)
+          })
+        );
+      }
     }
+  }
+
+  dispose() {
+    // TODO: Clean up all buffers
   }
 
   nameFor(token: WGSLToken) {
     return this.names.nameFor(token);
   }
+
+  bufferFor(block: WGSLMemoryBlock) {
+    return this.memoryBlockBuffers.get(block);
+  }
 }
 
 export interface IResolutionCtx {
   addDependency(item: WGSLItem): void;
-  readonlyStorageToken: WGSLToken;
-  addReadonlyStorage(storage: WGSLStorage): void;
+  addMemory(storage: WGSLMemory<unknown>): void;
   nameFor(token: WGSLToken): string;
   resolve(item: WGSLSegment): string;
 }
 
 export class ResolutionCtx implements IResolutionCtx {
   public dependencies: WGSLItem[] = [];
-  public readonlyStorageDeclarationIdx = 0;
+  public memoryBlockDeclarationIdxMap = new WeakMap<WGSLMemoryBlock, number>();
 
   private memoizedResults = new WeakMap<WGSLItem, string>();
 
   constructor(
     public readonly names: NameRegistry,
-    public readonly readonlyStorage: StorageRegistry,
+    public readonly memory: MemoryRegistry,
     public readonly paramBindings: [WGSLParam, WGSLParamValue][],
     private readonly group: number
   ) {}
@@ -84,13 +145,9 @@ export class ResolutionCtx implements IResolutionCtx {
     addUnique(this.dependencies, item);
   }
 
-  get readonlyStorageToken() {
-    return this.readonlyStorage.storageName;
-  }
-
-  addReadonlyStorage(storage: WGSLStorage): void {
-    this.readonlyStorage.register(storage);
-    this.readonlyStorageDeclarationIdx = this.dependencies.length;
+  addMemory(memoryEntry: WGSLMemory<unknown>): void {
+    this.memory.register(memoryEntry.block);
+    this.memoryBlockDeclarationIdxMap.set(memoryEntry.block, this.dependencies.length);
   }
 
   nameFor(token: WGSLToken): string {
@@ -174,19 +231,13 @@ class WGSLConstant extends WGSLItem {
   }
 }
 
-export interface WGSLStorage {
-  readonly nameToken: WGSLToken;
-  readonly typeExpr: WGSLSegment;
-  readonly size: number;
-  readonly baseAlignment: number;
-}
-
-class WGSLReadonlyStorage<T> extends WGSLItem implements WGSLStorage {
+class WGSLMemory<T> extends WGSLItem {
   public nameToken: WGSLToken;
   public size: number;
   public baseAlignment: number;
 
   constructor(
+    public readonly block: WGSLMemoryBlock,
     description: string,
     public readonly typeExpr: WGSLSegment,
     private readonly typeSchema: AlignedSchema<T>
@@ -199,14 +250,14 @@ class WGSLReadonlyStorage<T> extends WGSLItem implements WGSLStorage {
   }
 
   write(runtime: WGSLRuntime, data: T) {
-    const gpuBuffer = runtime.readonlyStorageBuffer;
+    const gpuBuffer = runtime.bufferFor(this.block);
 
     if (!gpuBuffer) {
       console.warn(`Cannot write to the read-only storage buffer. Nothing is used in code.`);
       return;
     }
 
-    const bufferOffset = runtime.readonlyStorage.locationFor(this);
+    const bufferOffset = this.block.locationFor(this);
 
     if (bufferOffset === undefined) {
       console.warn(`Cannot write to a storage entry that is unused in code.`);
@@ -219,10 +270,10 @@ class WGSLReadonlyStorage<T> extends WGSLItem implements WGSLStorage {
   }
 
   resolve(ctx: IResolutionCtx): string {
-    ctx.addReadonlyStorage(this);
+    ctx.addMemory(this);
     ctx.resolve(this.typeExpr); // Adding dependencies of this entry
 
-    return ctx.resolve(ctx.readonlyStorageToken) + '.' + ctx.resolve(this.nameToken);
+    return ctx.resolve(this.block.variableName) + '.' + ctx.resolve(this.nameToken);
   }
 }
 
@@ -278,72 +329,54 @@ export class WGSLCode extends WGSLItem {
 
 export type WGSLSegment = string | number | WGSLItem;
 
-function defined<T>(value: T): value is NonNullable<T> {
-  return value !== undefined;
-}
-
 export function resolveProgram(
   device: GPUDevice,
   root: WGSLItem,
   options: { shaderStage: number; bindingGroup: number; params?: [WGSLParam, WGSLParamValue][] }
 ) {
   const names = new NameRegistry();
-  const readonlyStorage = new StorageRegistry();
-  const ctx = new ResolutionCtx(names, readonlyStorage, options.params ?? [], options.bindingGroup);
+  const memory = new MemoryRegistry();
+  const ctx = new ResolutionCtx(names, memory, options.params ?? [], options.bindingGroup);
 
   const codeString = ctx.resolve(root); // Resolving
 
-  const runtime = new WGSLRuntime(device, names, readonlyStorage);
+  const runtime = new WGSLRuntime(device, names, memory);
+
+  const usedBlocks = [...runtime.memory.blocks.values()].filter(
+    (block) => !!runtime.bufferFor(block)
+  ); // only used blocks;
 
   const bindGroupLayout = device.createBindGroupLayout({
-    entries: [
-      runtime.readonlyStorageBuffer
-        ? {
-            binding: 0,
-            visibility: options.shaderStage,
-            buffer: {
-              type: 'read-only-storage' as const
-            }
-          }
-        : undefined
-    ].filter(defined)
+    entries: usedBlocks.map((block, idx) => ({
+      binding: idx,
+      visibility: options.shaderStage,
+      buffer: {
+        type: block.bufferBindingType
+      }
+    }))
   });
 
   const bindGroup = device.createBindGroup({
     layout: bindGroupLayout,
-    entries: [
-      runtime.readonlyStorageBuffer
-        ? {
-            binding: 0,
-            resource: {
-              buffer: runtime.readonlyStorageBuffer
-            }
-          }
-        : undefined
-    ].filter(defined)
+    entries: usedBlocks.map((block, idx) => ({
+      binding: idx,
+      resource: {
+        buffer: runtime.bufferFor(block)!
+      }
+    }))
   });
-
-  const readonlyEntries = runtime.readonlyStorage.entries.map(
-    (e) => code`${e.nameToken}: ${e.typeExpr},\n`
-  );
-
-  const storageTypeToken = new WGSLToken('ReadonlyStorageType');
 
   const dependencies = ctx.dependencies.slice();
 
-  if (readonlyEntries.length > 0) {
-    dependencies.splice(
-      ctx.readonlyStorageDeclarationIdx,
-      0,
-      code`
-  struct ${storageTypeToken} {
-    ${readonlyEntries}
-  }
+  usedBlocks.forEach((block, idx) => {
+    const definitionCode = block.definitionCode(options.bindingGroup, idx);
 
-  @group(${options.bindingGroup}) @binding(0) var<storage, read> ${ctx.readonlyStorageToken}: ${storageTypeToken};
-  `
-    );
-  }
+    if (!definitionCode) {
+      return;
+    }
+
+    dependencies.splice(ctx.memoryBlockDeclarationIdxMap.get(block) ?? 0, 0, definitionCode);
+  });
 
   return {
     runtime,
@@ -395,21 +428,17 @@ function constant(expr: WGSLSegment, description?: string): WGSLConstant {
   return new WGSLConstant(expr, description ?? 'constant');
 }
 
-function readonlyStorage<T>(
-  description: string,
-  typeExpr: WGSLSegment,
-  typeSchema: AlignedSchema<T>
-) {
-  return new WGSLReadonlyStorage(description, typeExpr, typeSchema);
-}
+export const READONLY_STORAGE = new WGSLMemoryBlock(
+  'readonly_storage',
+  GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  'read-only-storage'
+);
 
-// function mutableStorage<T>(description: string, typeExpr: WGSLSegment, typeSchema: ISchema<T>) {
-//   return new WGSLSharedBuffer(
-//     description,
-//     typeExpr,
-//     typeSchema
-//   );
-// }
+export const UNIFORM = new WGSLMemoryBlock(
+  'uniforms',
+  GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+  'uniform'
+);
 
 export default Object.assign(code, {
   code,
@@ -417,6 +446,7 @@ export default Object.assign(code, {
   token,
   param,
   constant,
-  readonlyStorage
+  READONLY_STORAGE,
+  UNIFORM
   // require
 });

@@ -87,6 +87,11 @@
     flex: 0.6;
   }
 
+  canvas {
+    width: 512px;
+    height: 512px;
+  }
+
   /* CSS */
 
   .button-19 {

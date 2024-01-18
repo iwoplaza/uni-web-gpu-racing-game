@@ -3,12 +3,19 @@ import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
 import type GBuffer from './gBuffer';
 import type SceneInfo from './sceneInfo';
+import type RendererContext from './rendererCtx';
 import wgsl, { resolveProgram } from './wgsl';
+import * as std140 from './std140';
 import { SunDir, checkerboard } from './wgslMaterial';
 import { randOnHemisphere } from './wgslRandom';
 
-const viewportWidthParam = wgsl.param('Viewport Width');
-const viewportHeightParam = wgsl.param('Viewport Height');
+const viewportWidth = wgsl.READONLY_STORAGE.allocate('Viewport Width', wgsl`u32`, std140.u32);
+const viewportHeight = wgsl.READONLY_STORAGE.allocate('Viewport Height', wgsl`u32`, std140.u32);
+const viewportAspectRatio = wgsl.READONLY_STORAGE.allocate(
+  'Viewport Aspect Ratio',
+  wgsl`f32`,
+  std140.f32
+);
 const outputFormatParam = wgsl.param('Output Format');
 
 const makeShaderCode = (sceneInfo: SceneInfo) => wgsl.code`
@@ -40,8 +47,6 @@ struct SceneInfo {
   num_of_shapes: u32
 }
 
-const WIDTH = ${viewportWidthParam};
-const HEIGHT = ${viewportHeightParam};
 const BLOCK_SIZE = {{BLOCK_SIZE}};
 const WHITE_NOISE_BUFFER_SIZE = {{WHITE_NOISE_BUFFER_SIZE}};
 const PI = 3.14159265359;
@@ -156,7 +161,7 @@ fn world_normals(point: vec3f, ctx: ShapeContext) -> vec3f {
 
 fn construct_ray(coord: vec2f, out_pos: ptr<function, vec3f>, out_dir: ptr<function, vec3f>) {
   var dir = vec4f(
-    (coord / vec2f(WIDTH, HEIGHT)) * 2. - 1.,
+    (coord / vec2f(f32(${viewportWidth}), f32(${viewportHeight}))) * 2. - 1.,
     1.,
     0.,
   );
@@ -231,8 +236,8 @@ fn main_frag(
   let lid = LocalInvocationID.xy;
   let parallel_idx = LocalInvocationID.y * BLOCK_SIZE + LocalInvocationID.x;
 
-  // var seed = (GlobalInvocationID.x * 17) + GlobalInvocationID.y * (WIDTH) + GlobalInvocationID.z * (WIDTH * HEIGHT) + u32(time * 0.005) * 3931;
-  var seed = (GlobalInvocationID.x + GlobalInvocationID.y * (WIDTH) + GlobalInvocationID.z * (WIDTH * HEIGHT)) * (SUPER_SAMPLES * SUPER_SAMPLES * 3 + 1 + u32(time));
+  // var seed = (GlobalInvocationID.x * 17) + f32(GlobalInvocationID.y) * (${viewportWidth}) + GlobalInvocationID.z * (${viewportWidth} * ${viewportHeight}) + u32(time * 0.005) * 3931;
+  var seed = (GlobalInvocationID.x + GlobalInvocationID.y * (${viewportWidth}) + GlobalInvocationID.z * (${viewportWidth} * ${viewportHeight})) * (SUPER_SAMPLES * SUPER_SAMPLES * 3 + 1 + u32(time));
 
   var acc = vec3f(0., 0., 0.);
   var march_result: MarchResult;
@@ -312,7 +317,6 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   const LABEL = `SDF Renderer`;
   const blockDim = 8;
   const whiteNoiseBufferSize = 512 * 512;
-  const mainPassSize = gBuffer.rawRender.size;
 
   const whiteNoiseBuffer = WhiteNoiseBuffer(device, whiteNoiseBufferSize, GPUBufferUsage.STORAGE);
   const timeInfoBuffer = TimeInfoBuffer(device, GPUBufferUsage.UNIFORM);
@@ -445,11 +449,7 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
     {
       bindingGroup: 3,
       shaderStage: GPUShaderStage.COMPUTE,
-      params: [
-        [viewportWidthParam, mainPassSize[0]],
-        [viewportHeightParam, mainPassSize[1]],
-        [outputFormatParam, 'rgba8unorm']
-      ]
+      params: [[outputFormatParam, 'rgba8unorm']]
     }
   );
 
@@ -478,11 +478,15 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   return {
     runtime,
 
-    perform(commandEncoder: GPUCommandEncoder) {
+    perform(ctx: RendererContext) {
       timeInfoBuffer.update();
       sceneInfo.camera.queueWrite(device);
 
-      const mainPass = commandEncoder.beginComputePass();
+      viewportWidth.write(runtime, ctx.targetResolution[0]);
+      viewportHeight.write(runtime, ctx.targetResolution[1]);
+      viewportAspectRatio.write(runtime, ctx.targetResolution[0] / ctx.targetResolution[1]);
+
+      const mainPass = ctx.commandEncoder.beginComputePass();
 
       mainPass.setPipeline(mainPipeline);
       mainPass.setBindGroup(0, sharedBindGroup);
@@ -490,8 +494,8 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
       mainPass.setBindGroup(2, sceneBindGroup);
       mainPass.setBindGroup(3, bindGroup);
       mainPass.dispatchWorkgroups(
-        Math.ceil(mainPassSize[0] / blockDim),
-        Math.ceil(mainPassSize[1] / blockDim),
+        Math.ceil(ctx.targetResolution[0] / blockDim),
+        Math.ceil(ctx.targetResolution[1] / blockDim),
         1
       );
 

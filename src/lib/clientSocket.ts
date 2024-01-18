@@ -56,7 +56,6 @@ export class ClientSocket {
 
     this.socket.on('disconnect', () => {
       console.log(`Disconnected`);
-      serverAddress.set(null);
     });
 
     this.socket.on(
@@ -124,11 +123,11 @@ export class ClientSocket {
         .use(measurePingMiddleware()) //
         .use(extractTimestampMiddleware()) //
         .finally((update) => {
-            const state = update.gameState;
-            if (!state) {
-              return;
-            }
-            gameStateStore.set(state);
+          const state = update.gameState;
+          if (!state) {
+            return;
+          }
+          gameStateStore.set(state);
         })
     );
   }
@@ -146,7 +145,6 @@ export class ClientSocket {
   connect() {
     this.socket.connect();
   }
-  
 }
 
 function getStorage() {
