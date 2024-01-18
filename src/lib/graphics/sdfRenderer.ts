@@ -2,12 +2,12 @@ import { preprocessShaderCode } from './preprocessShaderCode';
 import { WhiteNoiseBuffer } from './whiteNoiseBuffer';
 import { TimeInfoBuffer } from './timeInfoBuffer';
 import type GBuffer from './gBuffer';
-import type SceneInfo from './sceneInfo';
 import type RendererContext from './rendererCtx';
 import wgsl, { type WGSLRuntime, resolveProgram } from './wgsl';
 import * as std140 from './std140';
 import { SunDir, checkerboard } from './wgslMaterial';
 import { randOnHemisphere } from './wgslRandom';
+import { SceneInfoWGSLPlaceholders, type SceneInfoWGSL } from './sceneInfo';
 
 const viewportWidth = wgsl.READONLY_STORAGE.allocate('Viewport Width', wgsl`u32`, std140.u32);
 const viewportHeight = wgsl.READONLY_STORAGE.allocate('Viewport Height', wgsl`u32`, std140.u32);
@@ -18,7 +18,7 @@ const viewportAspectRatio = wgsl.READONLY_STORAGE.allocate(
 );
 const outputFormatParam = wgsl.param('Output Format');
 
-const makeShaderCode = (sceneInfo: SceneInfo) => wgsl.code`
+const sdfRendererCode = wgsl.code`
 struct Material {
   color: vec3f,
   emissive: bool,
@@ -85,12 +85,12 @@ fn surface_dist(view_pos: vec3f) -> f32 {
   return dist_from_camera * 0.01;
 }
 
-${sceneInfo.shapeDefinitionsCode}
+${SceneInfoWGSLPlaceholders.shapeDefinitions}
 
 fn sdf_scene_shape(pos: vec3f, ctx: ShapeContext, idx: u32) -> f32 {
   let kind = scene_shapes[idx].kind;
 
-  ${sceneInfo.sceneResolverCode}
+  ${SceneInfoWGSLPlaceholders.sceneResolver}
 
   return FAR;
 }
@@ -140,7 +140,7 @@ fn material_world(ctx: MatContext, out: ptr<function, Material>) {
   if (shape_idx != -1) { // not sky
     let kind = scene_shapes[shape_idx].kind;
 
-    ${sceneInfo.materialResolverCode}
+    ${SceneInfoWGSLPlaceholders.materialResolver}
   }
 }
 
@@ -313,7 +313,11 @@ fn main_frag(
 }
 `;
 
-export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: SceneInfo) => {
+export const SDFRenderer = (
+  runtime: WGSLRuntime,
+  gBuffer: GBuffer,
+  sceneInfoWGSL: SceneInfoWGSL
+) => {
   const device = runtime.device;
 
   const LABEL = `SDF Renderer`;
@@ -407,33 +411,6 @@ export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: S
     ]
   });
 
-  const sceneBindGroup = device.createBindGroup({
-    label: `${LABEL} - Scene Bind Group`,
-    layout: sceneBindGroupLayout,
-    entries: [
-      {
-        binding: 0,
-        resource: {
-          buffer: sceneInfo.camera.gpuBuffer
-        }
-      },
-      // scene_info
-      {
-        binding: 1,
-        resource: {
-          buffer: sceneInfo.gpuSceneInfoBuffer
-        }
-      },
-      // scene_shapes
-      {
-        binding: 2,
-        resource: {
-          buffer: sceneInfo.gpuSceneShapesBuffer
-        }
-      }
-    ]
-  });
-
   const mainBindGroup = device.createBindGroup({
     label: `${LABEL} - Main Bind Group`,
     layout: mainBindGroupLayout,
@@ -445,10 +422,15 @@ export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: S
     ]
   });
 
-  const { code, bindGroup, bindGroupLayout } = resolveProgram(runtime, makeShaderCode(sceneInfo), {
+  const { code, bindGroup, bindGroupLayout } = resolveProgram(runtime, sdfRendererCode, {
     bindingGroup: 3,
     shaderStage: GPUShaderStage.COMPUTE,
-    params: [[outputFormatParam, 'rgba8unorm']]
+    params: [[outputFormatParam, 'rgba8unorm']],
+    placeholders: [
+      [SceneInfoWGSLPlaceholders.shapeDefinitions, sceneInfoWGSL.shapeDefinitionsCode],
+      [SceneInfoWGSLPlaceholders.sceneResolver, sceneInfoWGSL.sceneResolverCode],
+      [SceneInfoWGSLPlaceholders.materialResolver, sceneInfoWGSL.materialResolverCode]
+    ]
   });
 
   const mainPipeline = device.createComputePipeline({
@@ -476,7 +458,6 @@ export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: S
   return {
     perform(ctx: RendererContext) {
       timeInfoBuffer.update();
-      sceneInfo.camera.queueWrite(device);
 
       viewportWidth.write(runtime, ctx.targetResolution[0]);
       viewportHeight.write(runtime, ctx.targetResolution[1]);
@@ -487,7 +468,6 @@ export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: S
       mainPass.setPipeline(mainPipeline);
       mainPass.setBindGroup(0, sharedBindGroup);
       mainPass.setBindGroup(1, mainBindGroup);
-      mainPass.setBindGroup(2, sceneBindGroup);
       mainPass.setBindGroup(3, bindGroup);
       mainPass.dispatchWorkgroups(
         Math.ceil(ctx.targetResolution[0] / blockDim),

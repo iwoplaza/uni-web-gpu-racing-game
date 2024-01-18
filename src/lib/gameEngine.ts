@@ -1,7 +1,7 @@
 import { SceneRenderer } from './graphics';
 import SceneInfo from './graphics/sceneInfo';
 import type { GameEngineCtx } from './gameEngineCtx';
-import type { WGSLRuntime } from './graphics/wgsl';
+import { WGSLRuntime } from './graphics/wgsl';
 import type RendererContext from './graphics/rendererCtx';
 
 export interface Game {
@@ -35,7 +35,7 @@ class RendererContextImpl implements RendererContext {
   public targetResolution: [number, number] = [0, 0];
 
   constructor(
-    public device: GPUDevice,
+    public runtime: WGSLRuntime,
     private _canvas: HTMLCanvasElement,
     private _canvasCtx: GPUCanvasContext
   ) {
@@ -51,7 +51,7 @@ class RendererContextImpl implements RendererContext {
     this._canvas.width = this.targetResolution[0];
     this._canvas.height = this.targetResolution[1];
 
-    this.commandEncoder = this.device.createCommandEncoder();
+    this.commandEncoder = this.runtime.device.createCommandEncoder();
   }
 
   get renderTargetView(): GPUTextureView {
@@ -118,19 +118,21 @@ class GameEngine {
       alphaMode: 'premultiplied'
     });
 
-    this.rendererCtx = new RendererContextImpl(device, canvas, canvasCtx);
+    const runtime = new WGSLRuntime(device);
+
+    this.rendererCtx = new RendererContextImpl(runtime, canvas, canvasCtx);
 
     this.game.init(this.sceneInfo);
 
     this.sceneInfo.init(device);
     this.renderer = new SceneRenderer(
-      device,
+      runtime,
       [...this.rendererCtx.targetResolution],
       presentationFormat,
       this.sceneInfo
     );
-    this.renderCtx.runtime = this.renderer.runtime;
-    this.tickCtx.runtime = this.renderer.runtime;
+    this.renderCtx.runtime = runtime;
+    this.tickCtx.runtime = runtime;
 
     this.initState = GameEngineInitState.READY;
 

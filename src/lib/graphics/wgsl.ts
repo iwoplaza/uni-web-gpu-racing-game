@@ -116,6 +116,9 @@ export class WGSLRuntime {
 }
 
 export interface IResolutionCtx {
+  readonly paramBindings: [WGSLParam, WGSLParamValue][];
+  readonly placeholderBindings: [WGSLPlaceholder, WGSLSegment][];
+
   addDependency(item: WGSLItem): void;
   addMemory(storage: WGSLMemory<unknown>): void;
   nameFor(token: WGSLToken): string;
@@ -132,7 +135,7 @@ export class ResolutionCtx implements IResolutionCtx {
   constructor(
     public readonly runtime: WGSLRuntime,
     public readonly paramBindings: [WGSLParam, WGSLParamValue][],
-    private readonly group: number
+    public readonly placeholderBindings: [WGSLPlaceholder, WGSLSegment][]
   ) {}
 
   addDependency(item: WGSLItem) {
@@ -198,7 +201,7 @@ class WGSLParam extends WGSLItem {
     super();
   }
 
-  resolve(ctx: ResolutionCtx): string {
+  resolve(ctx: IResolutionCtx): string {
     const [, value = this.defaultValue] = ctx.paramBindings.find(([param]) => param === this) ?? [];
     if (!value) {
       throw new Error(`Missing parameter binding for '${this.description}'`);
@@ -322,14 +325,50 @@ export class WGSLCode extends WGSLItem {
   }
 }
 
+export class WGSLPlaceholder extends WGSLItem {
+  constructor(public description: string, public defaultSegment?: WGSLSegment) {
+    super();
+  }
+
+  private getSegment(ctx: IResolutionCtx) {
+    const [, segment = this.defaultSegment] =
+      ctx.placeholderBindings.find(([placeholder]) => placeholder === this) ?? [];
+
+    if (!segment) {
+      throw new Error(`Missing placeholder binding for '${this.description}'`);
+    }
+
+    return segment;
+  }
+
+  getChildren(ctx: IResolutionCtx): WGSLItem[] {
+    const segment = this.getSegment(ctx);
+
+    if (segment instanceof WGSLItem) {
+      return segment.getChildren(ctx);
+    }
+
+    return [];
+  }
+
+  resolve(ctx: IResolutionCtx): string {
+    return ctx.resolve(this.getSegment(ctx));
+  }
+}
+
 export type WGSLSegment = string | number | WGSLItem;
 
 export function resolveProgram(
   runtime: WGSLRuntime,
   root: WGSLItem,
-  options: { shaderStage: number; bindingGroup: number; params?: [WGSLParam, WGSLParamValue][] }
+  options: {
+    shaderStage: number;
+    bindingGroup: number;
+    params?: [WGSLParam, WGSLParamValue][];
+    placeholders?: [WGSLPlaceholder, WGSLSegment][];
+  }
 ) {
-  const ctx = new ResolutionCtx(runtime, options.params ?? [], options.bindingGroup);
+  const ctx = new ResolutionCtx(runtime, options.params ?? [], options.placeholders ?? []);
 
   const codeString = ctx.resolve(root); // Resolving
 
@@ -412,6 +451,10 @@ function param(description: string, defaultValue?: WGSLParamValue): WGSLParam {
   return new WGSLParam(description, defaultValue);
 }
 
+function placeholder(description: string, defaultSegment?: WGSLSegment): WGSLPlaceholder {
+  return new WGSLPlaceholder(description, defaultSegment);
+}
+
 function constant(expr: WGSLSegment, description?: string): WGSLConstant {
   return new WGSLConstant(expr, description ?? 'constant');
 }
@@ -433,6 +476,7 @@ export default Object.assign(code, {
   fn,
   token,
   param,
+  placeholder,
   constant,
   READONLY_STORAGE,
   UNIFORM

@@ -1,20 +1,17 @@
 import { mat4, vec3, type Mat4 } from 'wgpu-matrix';
 
+import { UNIFORM } from './wgsl';
+import * as std140 from './std140';
+import type RendererContext from './rendererCtx';
+
+export const viewMatrixMemory = UNIFORM.allocate('View Matrix', 'mat4f', std140.mat4f);
+
 class CameraSettings {
   private _parentMatrix = mat4.identity();
   public origin: [number, number, number] = [0, 2, 0];
   public distance: number = 5;
 
-  private _gpuBuffer: GPUBuffer | undefined = undefined;
-
   constructor() {}
-
-  init(device: GPUDevice) {
-    this._gpuBuffer = device.createBuffer({
-      size: 16 * 4, // mat4x4<f32>,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-    });
-  }
 
   set parentMatrix(value: Mat4) {
     mat4.copy(value, this._parentMatrix);
@@ -38,24 +35,8 @@ class CameraSettings {
     return viewMatrix;
   }
 
-  get gpuBuffer(): GPUBuffer {
-    if (!this._gpuBuffer) {
-      throw new Error(`Camera Setting have not been initialized`);
-    }
-
-    return this._gpuBuffer;
-  }
-
-  queueWrite(device: GPUDevice): void {
-    const viewMatrix = this.viewMatrix as Float32Array;
-
-    device.queue.writeBuffer(
-      this.gpuBuffer, // dest
-      0, // dest offset
-      viewMatrix.buffer, // src
-      viewMatrix.byteOffset, // src offset
-      viewMatrix.byteLength // size
-    );
+  prepare(ctx: RendererContext): void {
+    viewMatrixMemory.write(ctx.runtime, [...this.viewMatrix.values()]);
   }
 }
 
