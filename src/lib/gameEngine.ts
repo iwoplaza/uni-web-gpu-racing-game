@@ -129,8 +129,8 @@ class GameEngine {
       presentationFormat,
       this.sceneInfo
     );
-    this.renderCtx.runtime = this.renderer.sdfRenderer.runtime;
-    this.tickCtx.runtime = this.renderer.sdfRenderer.runtime;
+    this.renderCtx.runtime = this.renderer.runtime;
+    this.tickCtx.runtime = this.renderer.runtime;
 
     this.initState = GameEngineInitState.READY;
 

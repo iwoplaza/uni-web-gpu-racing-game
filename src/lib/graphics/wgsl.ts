@@ -77,35 +77,30 @@ export class WGSLMemoryBlock {
 }
 
 export class MemoryRegistry {
-  public blocks = new Set<WGSLMemoryBlock>();
+  private memoryBlockBuffers = new WeakMap<WGSLMemoryBlock, GPUBuffer>();
 
   constructor() {}
 
-  register(storage: WGSLMemoryBlock) {
-    this.blocks.add(storage);
+  bufferFor(device: GPUDevice, block: WGSLMemoryBlock) {
+    let buffer = this.memoryBlockBuffers.get(block);
+    if (!buffer) {
+      buffer = device.createBuffer({
+        usage: block.usage,
+        size: roundUp(block.size, 16)
+      });
+
+      this.memoryBlockBuffers.set(block, buffer);
+    }
+
+    return buffer;
   }
 }
 
 export class WGSLRuntime {
-  private memoryBlockBuffers = new WeakMap<WGSLMemoryBlock, GPUBuffer>();
+  public readonly names = new NameRegistry();
+  public readonly memory = new MemoryRegistry();
 
-  constructor(
-    public readonly device: GPUDevice,
-    public readonly names: NameRegistry,
-    public readonly memory: MemoryRegistry
-  ) {
-    for (const block of memory.blocks) {
-      if (block.size > 0) {
-        this.memoryBlockBuffers.set(
-          block,
-          device.createBuffer({
-            usage: block.usage, //GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-            size: roundUp(block.size, 16)
-          })
-        );
-      }
-    }
-  }
+  constructor(public readonly device: GPUDevice) {}
 
   dispose() {
     // TODO: Clean up all buffers
@@ -116,7 +111,7 @@ export class WGSLRuntime {
   }
 
   bufferFor(block: WGSLMemoryBlock) {
-    return this.memoryBlockBuffers.get(block);
+    return this.memory.bufferFor(this.device, block);
   }
 }
 
@@ -129,13 +124,13 @@ export interface IResolutionCtx {
 
 export class ResolutionCtx implements IResolutionCtx {
   public dependencies: WGSLItem[] = [];
+  public usedMemoryBlocks = new Set<WGSLMemoryBlock>();
   public memoryBlockDeclarationIdxMap = new WeakMap<WGSLMemoryBlock, number>();
 
   private memoizedResults = new WeakMap<WGSLItem, string>();
 
   constructor(
-    public readonly names: NameRegistry,
-    public readonly memory: MemoryRegistry,
+    public readonly runtime: WGSLRuntime,
     public readonly paramBindings: [WGSLParam, WGSLParamValue][],
     private readonly group: number
   ) {}
@@ -146,12 +141,12 @@ export class ResolutionCtx implements IResolutionCtx {
   }
 
   addMemory(memoryEntry: WGSLMemory<unknown>): void {
-    this.memory.register(memoryEntry.block);
+    this.usedMemoryBlocks.add(memoryEntry.block);
     this.memoryBlockDeclarationIdxMap.set(memoryEntry.block, this.dependencies.length);
   }
 
   nameFor(token: WGSLToken): string {
-    return this.names.nameFor(token);
+    return this.runtime.names.nameFor(token);
   }
 
   resolve(item: WGSLSegment) {
@@ -330,23 +325,17 @@ export class WGSLCode extends WGSLItem {
 export type WGSLSegment = string | number | WGSLItem;
 
 export function resolveProgram(
-  device: GPUDevice,
+  runtime: WGSLRuntime,
   root: WGSLItem,
   options: { shaderStage: number; bindingGroup: number; params?: [WGSLParam, WGSLParamValue][] }
 ) {
-  const names = new NameRegistry();
-  const memory = new MemoryRegistry();
-  const ctx = new ResolutionCtx(names, memory, options.params ?? [], options.bindingGroup);
+  const ctx = new ResolutionCtx(runtime, options.params ?? [], options.bindingGroup);
 
   const codeString = ctx.resolve(root); // Resolving
 
-  const runtime = new WGSLRuntime(device, names, memory);
+  const usedBlocks = [...ctx.usedMemoryBlocks.values()];
 
-  const usedBlocks = [...runtime.memory.blocks.values()].filter(
-    (block) => !!runtime.bufferFor(block)
-  ); // only used blocks;
-
-  const bindGroupLayout = device.createBindGroupLayout({
+  const bindGroupLayout = runtime.device.createBindGroupLayout({
     entries: usedBlocks.map((block, idx) => ({
       binding: idx,
       visibility: options.shaderStage,
@@ -356,7 +345,7 @@ export function resolveProgram(
     }))
   });
 
-  const bindGroup = device.createBindGroup({
+  const bindGroup = runtime.device.createBindGroup({
     layout: bindGroupLayout,
     entries: usedBlocks.map((block, idx) => ({
       binding: idx,
@@ -379,7 +368,6 @@ export function resolveProgram(
   });
 
   return {
-    runtime,
     bindGroupLayout,
     bindGroup,
     code: dependencies.map((d) => ctx.resolve(d)).join('\n') + '\n' + codeString

@@ -4,6 +4,7 @@ import type RendererContext from './rendererCtx';
 import type SceneInfo from './sceneInfo';
 import { SDFRenderer } from './sdfRenderer';
 import ViewportSettings from './viewportSettings';
+import { WGSLRuntime } from './wgsl';
 
 class SceneRenderer {
   private gBuffer: GBuffer;
@@ -11,14 +12,18 @@ class SceneRenderer {
   public sdfRenderer: ReturnType<typeof SDFRenderer>;
   private postProcess: ReturnType<typeof PostProcessingStep>;
 
+  public runtime: WGSLRuntime;
+
   constructor(
     device: GPUDevice,
     canvasSize: [number, number],
     presentationFormat: GPUTextureFormat,
     scene: SceneInfo
   ) {
+    this.runtime = new WGSLRuntime(device);
+
     this.gBuffer = new GBuffer(device, canvasSize);
-    this.sdfRenderer = SDFRenderer(device, this.gBuffer, scene);
+    this.sdfRenderer = SDFRenderer(this.runtime, this.gBuffer, scene);
     this.viewportSettings = new ViewportSettings(device);
     this.postProcess = PostProcessingStep({
       device,

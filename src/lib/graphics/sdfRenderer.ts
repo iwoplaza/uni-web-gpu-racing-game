@@ -4,7 +4,7 @@ import { TimeInfoBuffer } from './timeInfoBuffer';
 import type GBuffer from './gBuffer';
 import type SceneInfo from './sceneInfo';
 import type RendererContext from './rendererCtx';
-import wgsl, { resolveProgram } from './wgsl';
+import wgsl, { type WGSLRuntime, resolveProgram } from './wgsl';
 import * as std140 from './std140';
 import { SunDir, checkerboard } from './wgslMaterial';
 import { randOnHemisphere } from './wgslRandom';
@@ -313,7 +313,9 @@ fn main_frag(
 }
 `;
 
-export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: SceneInfo) => {
+export const SDFRenderer = (runtime: WGSLRuntime, gBuffer: GBuffer, sceneInfo: SceneInfo) => {
+  const device = runtime.device;
+
   const LABEL = `SDF Renderer`;
   const blockDim = 8;
   const whiteNoiseBufferSize = 512 * 512;
@@ -443,15 +445,11 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
     ]
   });
 
-  const { runtime, code, bindGroup, bindGroupLayout } = resolveProgram(
-    device,
-    makeShaderCode(sceneInfo),
-    {
-      bindingGroup: 3,
-      shaderStage: GPUShaderStage.COMPUTE,
-      params: [[outputFormatParam, 'rgba8unorm']]
-    }
-  );
+  const { code, bindGroup, bindGroupLayout } = resolveProgram(runtime, makeShaderCode(sceneInfo), {
+    bindingGroup: 3,
+    shaderStage: GPUShaderStage.COMPUTE,
+    params: [[outputFormatParam, 'rgba8unorm']]
+  });
 
   const mainPipeline = device.createComputePipeline({
     label: `${LABEL} - Main Pipeline`,
@@ -476,8 +474,6 @@ export const SDFRenderer = (device: GPUDevice, gBuffer: GBuffer, sceneInfo: Scen
   });
 
   return {
-    runtime,
-
     perform(ctx: RendererContext) {
       timeInfoBuffer.update();
       sceneInfo.camera.queueWrite(device);
